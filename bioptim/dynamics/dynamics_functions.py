@@ -537,6 +537,18 @@ class DynamicsFunctions:
         return nlp.model.muscle_joint_torque()(activations, q, qdot, nlp.parameters.cx)
 
     @staticmethod
+    def compute_tau_from_tendons(
+            nlp: "NonLinearProgram",
+            q: CX,
+            qdot: CX,
+            tendon_pull_forces: CX
+    ):
+        tendon_forces = nlp.cx()
+        for k in range(len(nlp.controls["tendons"])):
+            tendon_forces = vertcat(tendon_forces, tendon_pull_forces[k])
+        return nlp.model.tendon_joint_torque()(tendon_forces, q, qdot, nlp.parameters.cx)
+
+    @staticmethod
     def no_states_mapping(nlp: "NonLinearProgram"):
         for key in nlp.states.keys():
             if nlp.variable_mappings[key].actually_does_a_mapping():

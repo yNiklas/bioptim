@@ -904,6 +904,11 @@ class BiorbdModel:
         return casadi_fun
 
     @cache_function
+    def tendon_joint_torque(self) -> Function:
+        # TODO: tendon
+        pass
+
+    @cache_function
     def markers(self) -> list[MX]:
         biorbd_return = horzcat(*[m.to_mx() for m in self.model.markers(GeneralizedCoordinates(self.q))])
         casadi_fun = Function(

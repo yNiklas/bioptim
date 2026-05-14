@@ -264,6 +264,13 @@ class BioModel(Protocol):
         """
 
     @cache_function
+    def tendon_joint_torque(self) -> Function:
+        """
+        Get the joint torques based on the tendons
+        args: tendon_pull_forces, q, qdot
+        """
+
+    @cache_function
     def marker(self, marker_index: Int, reference_frame_idx: Int = None) -> Function:
         """
         Get the position of a marker
