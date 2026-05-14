@@ -3,6 +3,7 @@ from typing import TypeAlias
 from .abstract_dynamics import StateDynamics, StateDynamicsWithContacts
 from .joint_acceleration_dynamics import JointAccelerationDynamics
 from .muscle_dynamics_with_excitations import MusclesDynamicsWithExcitations
+from .tendon_dynamics import TendonDynamics
 from .torque_dynamics_holonomic import HolonomicTorqueDynamics
 from .muscle_dynamics import MusclesDynamics
 from .stochastic_dynamics import StochasticTorqueDynamics
@@ -25,4 +26,5 @@ StateSpaceDynamics: TypeAlias = (
     | JointAccelerationDynamics
     | HolonomicTorqueDynamics
     | VariationalTorqueDynamics
+    | TendonDynamics
 )

@@ -1047,6 +1047,41 @@ class ConfigureVariables:
         )
 
     @staticmethod
+    def configure_tendons(
+        ocp,
+        nlp,
+        as_states: bool = False,
+        as_controls: bool = False,
+        as_algebraic_states: bool = False,
+    ):
+        """
+        Configure the tendons
+
+        Parameters
+        ----------
+        nlp: NonLinearProgram
+            A reference to the phase
+        as_states: bool
+            If the tendons should be a state
+        as_controls: bool
+            If the tendons should be a control
+        as_algebraic_states: bool
+            If the tendons should be an algebraic state
+        """
+
+        tendon_names = nlp.model.tendon_names
+        ConfigureVariables.configure_new_variable(
+            "tendons",
+            tendon_names,
+            ocp,
+            nlp,
+            as_states=as_states,
+            as_controls=as_controls,
+            as_algebraic_states=as_algebraic_states,
+            combine_state_control_plot=True,
+        )
+
+    @staticmethod
     def configure_rigid_contact_function(ocp, nlp, **extra_params) -> None:
         """
         Configure the contact points
@@ -1568,6 +1603,7 @@ class Controls(Enum):
     TAU_JOINTS = lambda **kwargs: ConfigureVariables.configure_tau_joints(as_controls=True, **kwargs)
     TAUDOT = lambda **kwargs: ConfigureVariables.configure_taudot(as_controls=True, **kwargs)
     MUSCLE_EXCITATION = lambda **kwargs: ConfigureVariables.configure_muscles(as_controls=True, **kwargs)
+    TENDONS = lambda **kwargs: ConfigureVariables.configure_tendons(as_controls=True, **kwargs)
     K = ConfigureVariables.configure_stochastic_k
     C = ConfigureVariables.configure_stochastic_c
     A = ConfigureVariables.configure_stochastic_a

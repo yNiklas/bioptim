@@ -502,6 +502,14 @@ class BiorbdModel:
     def nb_muscles(self) -> int:
         return self.model.nbMuscles()
 
+    @property
+    def tendon_names(self) -> tuple[str, ...]:
+        return tuple(s.to_string() for s in self.model.tendonNames())
+
+    @property
+    def nb_tendons(self) -> int:
+        return self.model.nbTendons()
+
     @cache_function
     def torque(self) -> Function:
         """

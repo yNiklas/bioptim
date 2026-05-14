@@ -24,6 +24,7 @@ from ...dynamics.state_space_dynamics import (
     MusclesDynamics,
     JointAccelerationDynamics,
     MusclesDynamicsWithExcitations,
+    TendonDynamics,
 )
 from ..protocols.holonomic_constraints import HolonomicConstraintsList
 from ...misc.parameters_types import (
@@ -398,5 +399,21 @@ class MultiTorqueBiorbdModel(MultiBiorbdModel, TorqueDynamics):
     def serialize(self) -> tuple[Callable, dict]:
         return MultiTorqueBiorbdModel, dict(bio_model=self.path)
 
+
+class TendonBiorbdModel(BiorbdModel, TendonDynamics):
+    def __init__(
+            self,
+            bio_model: Str | biorbd.Model,
+            parameters: ParameterList = None,
+            **kwargs,
+    ):
+        super().__init__(
+            bio_model=bio_model,
+            parameters=parameters,
+            **kwargs,
+        )
+
+    def serialize(self) -> tuple[Callable, dict]:
+        return TendonBiorbdModel, dict(bio_model=self.path)
 
 # TODO: add variational

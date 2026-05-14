@@ -216,6 +216,7 @@ from .models.biorbd.model_dynamics import (
     MusclesWithExcitationsBiorbdModel,
     JointAccelerationBiorbdModel,
     MultiTorqueBiorbdModel,
+    TendonBiorbdModel
 )
 from .models.protocols.biomodel import BioModel
 from .models.protocols.holonomic_constraints import HolonomicConstraintsFcn, HolonomicConstraintsList

@@ -1,0 +1,27 @@
+version 4
+
+segment ground
+endsegment
+
+segment Link
+    rt 0.2 0 0 xyz 0 0.5 0
+    rotations x
+    mass 1
+    inertia
+		0.0833  0.0000	0.0000
+		0.0000	0.0833	0.0000
+	    0.0000	0.0000	0.0010
+    com  0.0000 0.5000 0.0000
+    mesh 0 0 0.05
+	mesh 0 1 0.05
+	mesh 0 1 -0.05
+	mesh 0 0 -0.05
+	mesh 0 0 0.05
+endsegment
+
+tendon t
+    origin Link
+    insertion Link
+    originPosition 0 0 0
+    insertionPosition 0 0.5 0
+endtendon
