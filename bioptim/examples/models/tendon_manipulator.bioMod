@@ -4,6 +4,7 @@ segment ground
 endsegment
 
 segment Link
+    parent ground
     rt 0.2 0 0 xyz 0 0.5 0
     rotations x
     mass 1

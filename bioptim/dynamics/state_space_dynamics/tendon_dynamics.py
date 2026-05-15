@@ -34,3 +34,16 @@ class TendonDynamics(TorqueDynamics):
         )
         return q, qdot, tau, external_forces
 
+    def dynamics(
+        self,
+        time,
+        states,
+        controls,
+        parameters,
+        algebraic_states,
+        numerical_timeseries,
+        nlp,
+    ):
+        # Call the super function since the implementation is identical.
+        # However, the super function call get_basic_variables to get the tendons tau
+        return super().dynamics(time, states, controls, parameters, algebraic_states, numerical_timeseries, nlp)

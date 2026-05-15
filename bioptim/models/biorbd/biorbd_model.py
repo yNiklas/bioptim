@@ -904,9 +904,17 @@ class BiorbdModel:
         return casadi_fun
 
     @cache_function
-    def tendon_joint_torque(self) -> Function:
-        # TODO: tendon
-        pass
+    def tendon_joint_torque(self, tendon_forces) -> Function:
+        q_biorbd = GeneralizedCoordinates(self.q)
+        qdot_biorbd = GeneralizedVelocity(self.qdot)
+        biorbd_return = self.model.jointTorquesFromTendons(tendon_forces, q_biorbd, qdot_biorbd).to_mx()
+        return Function(
+            "jointTorquesFromTendons",
+            [tendon_forces, self.q, self.qdot, self.parameters],
+            [biorbd_return],
+            ["tendon_forces", "q", "qdot", "parameters"],
+            ["jointTorquesFromTendons"],
+        )
 
     @cache_function
     def markers(self) -> list[MX]:
