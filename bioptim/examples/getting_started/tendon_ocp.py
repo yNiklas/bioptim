@@ -11,22 +11,24 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     print(f"nb_tendons: {bio_model.nb_tendons}")
     print(f"tendon_names: {bio_model.tendon_names}")
 
-    objective_functions = Objective(ObjectiveFcn.Mayer.MINIMIZE_TIME)
+    #objective_functions = Objective(ObjectiveFcn.Mayer.MINIMIZE_TIME)
+    objective_functions = Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons")
 
     x_bounds = BoundsList()
     x_bounds["q"] = bio_model.bounds_from_ranges("q")
     x_bounds["q"][0, 0] = 0.2
-    x_bounds["q"][0, -1] = 1
+    x_bounds["q"][0, -1] = 0.4
     x_bounds["qdot"] = bio_model.bounds_from_ranges("qdot")
     x_bounds["qdot"][0, 0] = 0
+    x_bounds["qdot"][0, -1] = 0
 
     u_bounds = BoundsList()
-    u_bounds["tendons"] = [0], [1]
+    u_bounds["tendons"] = [0], [100]
 
     return OptimalControlProgram(
         bio_model,
         n_shooting=50,
-        phase_time=1,
+        phase_time=2,
         objective_functions=objective_functions,
         x_bounds=x_bounds,
         u_bounds=u_bounds,

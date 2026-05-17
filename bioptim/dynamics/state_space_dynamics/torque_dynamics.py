@@ -55,7 +55,6 @@ class TorqueDynamics(StateDynamicsWithContacts):
         return slope_q, slope_qdot
 
     def get_basic_variables(self, nlp, states, controls, parameters, algebraic_states, numerical_timeseries):
-
         # Get variables from the right place
         q = DynamicsFunctions.get(nlp.states["q"], states)
         qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
