@@ -1,0 +1,55 @@
+version 4
+
+segment ground
+endsegment
+
+segment proximal
+    parent ground
+    rt 0 0 0 xyz 0 0.2 0
+    rotations x
+    ranges
+        0 0.3*pi
+    mass 0.1
+    inertia
+		0.0833  0.0000	0.0000
+		0.0000	0.0833	0.0000
+	    0.0000	0.0000	0.0010
+    com  0.0000 0.0000 0.5000
+    mesh 0 0.05 0
+	mesh 0 0.05 1
+	mesh 0 -0.05 1
+	mesh 0 -0.05 0
+	mesh 0 0.05 0
+endsegment
+
+segment distal
+    parent proximal
+    rt 0 0 0 xyz 0 0 1
+    rotations x
+    ranges
+        0 0.4*pi
+    mass 0.1
+    inertia
+        0.0833  0.0000	0.0000
+        0.0000	0.0833	0.0000
+        0.0000	0.0000	0.0010
+    com  0.0000 0.0000 0.5000
+    mesh 0 0.05 0
+    mesh 0 0.05 1
+    mesh 0 -0.05 1
+    mesh 0 -0.05 0
+    mesh 0 0.05 0
+endsegment
+
+tendon t
+    origin ground
+    insertion distal
+    originPosition 0 0 -0.2
+    insertionPosition 0 -0.07 0.2
+endtendon
+tendonRoutingPoint trp1
+    tendon t
+    parent proximal
+    position 0 0.07 0.5
+    frictionLoss 0.1
+endtendonRoutingPoint

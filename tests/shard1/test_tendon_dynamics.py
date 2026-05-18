@@ -6,6 +6,7 @@ import pytest
 from casadi import DM, Function, MX
 
 from bioptim import DynamicsFunctions, TendonBiorbdModel
+from tests.utils import TestUtils
 
 
 class FakeNlp:
@@ -32,20 +33,14 @@ def _evaluate_tau_from_tendons(nlp, q_value, qdot_value, tendon_pull_forces_valu
         (DM([0.0]), DM([0.0]), DM([0.0]), 0.0),
         (DM([0.0]), DM([0.0]), DM([400.0]), 0.0),
         (DM([np.pi / 2]), DM([0.0]), DM([10.0]), 10.0 * np.cos(np.pi / 4) * 0.5),
-        (DM([0.2]), DM([0.0]), DM([10.0]), 4),
+        (DM([0.2]), DM([0.0]), DM([10.0]), 0.499167),
     ],
 )
 def test_compute_tau_from_tendons_matches_expected_values(
     q_value, qdot_value, tendon_pull_forces_value, expected_tau
 ):
-    model_path = (
-        Path(__file__).resolve().parents[3]
-        / "biorbd"
-        / "test"
-        / "models"
-        / "two_segments_with_tendon.bioMod"
-    )
-    model = TendonBiorbdModel(str(model_path))
+    model_path = TestUtils.bioptim_folder() + "/examples/models/tendon_manipulator.bioMod"
+    model = TendonBiorbdModel(model_path)
     nlp = FakeNlp(model)
 
     tau = _evaluate_tau_from_tendons(nlp, q_value, qdot_value, tendon_pull_forces_value)

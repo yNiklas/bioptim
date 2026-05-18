@@ -5,7 +5,7 @@ endsegment
 
 segment proximal
     parent ground
-    rt 0.2 0 0 xyz 0 0.5 0
+    rt 0 0 0 xyz 0 0.5 0
     rotations x
     ranges
         0 0.4*pi
@@ -24,7 +24,7 @@ endsegment
 
 segment middle
     parent proximal
-    rt 0.2 0 0 xyz 0 1 0
+    rt 0 0 0 xyz 0 1 0
     rotations x
     ranges
         0 0.5*pi
@@ -43,7 +43,7 @@ endsegment
 
 segment distal
     parent middle
-    rt 0.2 0 0 xyz 0 1 0
+    rt 0 0 0 xyz 0 1 0
     rotations x
     ranges
         0 0.4*pi
@@ -62,9 +62,9 @@ endsegment
 
 tendon t
     origin ground
-    insertion Link
+    insertion distal
     originPosition 0 0 0
-    insertionPosition 0 0.2 0
+    insertionPosition 0 0.5 0
 endtendon
 tendonRoutingPoint trp1
     tendon t

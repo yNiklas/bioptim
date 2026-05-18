@@ -16,14 +16,15 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
 
     x_bounds = BoundsList()
     x_bounds["q"] = bio_model.bounds_from_ranges("q")
-    x_bounds["q"][0, 0] = 0.2
-    x_bounds["q"][0, -1] = 0.4
+    x_bounds["q"][0, 0] = 0
+    x_bounds["q"][1, 0] = 0.2
+    x_bounds["q"][1, -1] = 0.4
     x_bounds["qdot"] = bio_model.bounds_from_ranges("qdot")
-    x_bounds["qdot"][0, 0] = 0
-    x_bounds["qdot"][0, -1] = 0
+    x_bounds["qdot"][:, 0] = 0
+    #x_bounds["qdot"][:, -1] = 0
 
     u_bounds = BoundsList()
-    u_bounds["tendons"] = [0], [100]
+    u_bounds["tendons"] = [0], [500]
 
     return OptimalControlProgram(
         bio_model,
@@ -35,12 +36,12 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     )
 
 def main():
-    ocp = prepare_ocp(ExampleUtils.folder + "/models/tendon_manipulator.bioMod")
+    ocp = prepare_ocp(ExampleUtils.folder + "/models/tendon_2dof_finger.bioMod")
     print("Prepared OCP")
     ocp.print(to_console=False, to_graph=False)
     sol = ocp.solve(Solver.IPOPT())
     sol.print_cost()
-    sol.animate(n_frames=50)
+    sol.animate(n_frames=100)
     sol.graphs()
 
 if __name__ == "__main__":
