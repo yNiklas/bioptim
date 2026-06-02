@@ -1,0 +1,111 @@
+version 4
+gravity 0 0 -9.81
+
+segment ground
+endsegment
+
+marker endeffector_contact_inlet
+    parent ground
+    position 0 -1.8 0
+endmarker
+
+marker endeffector_final
+    parent ground
+    position 0 -1.3 0
+endmarker
+
+segment finger_base
+    parent ground
+    rt 0 0 0 xyz 0 0 0
+    mass 0.5
+    com 0 0 0
+    inertia
+        0.007  0.0000	0.0000
+        0.0000	0.38	0.0000
+        0.0000	0.0000	0.39
+    mesh 0 -0.2 -1.5
+    mesh 0 0.2 -1.5
+    mesh 0 0.2 1.5
+    mesh 0 -0.2 1.5
+    mesh 0 -0.2 -1.5
+endsegment
+
+segment proximal
+    parent finger_base
+    rt 0 0 0 xyz 0 -0.1 1.5
+    rotations x
+    ranges
+        0 0.5*pi
+    mass 0.02
+    inertia
+		0.0833  0.0000	0.0000
+		0.0000	0.0833	0.0000
+	    0.0000	0.0000	0.0010
+    com  0.0000 0.0000 0.5000
+    mesh 0 0.05 0
+	mesh 0 0.05 1
+	mesh 0 -0.05 1
+	mesh 0 -0.05 0
+	mesh 0 0.05 0
+endsegment
+
+segment distal
+    parent proximal
+    rt 0 0 0 xyz 0 0 1
+    rotations x
+    ranges
+        0 0.5*pi
+    mass 0.02
+    inertia
+        0.0833  0.0000	0.0000
+        0.0000	0.0833	0.0000
+        0.0000	0.0000	0.0010
+    com  0.0000 0.0000 0.5000
+    mesh 0 0.05 0
+    mesh 0 0.05 1
+    mesh 0 -0.05 1
+    mesh 0 -0.05 0
+    mesh 0 0.05 0
+endsegment
+
+marker endeffector
+    parent distal
+    position 0 0 1
+endmarker
+
+tendon t
+    origin finger_base
+    insertion distal
+    originPosition 0 -0.15 1.4
+    insertionPosition 0 -0.07 0.3
+endtendon
+tendonRoutingPoint trp1
+    tendon t
+    parent proximal
+    position 0 0.05 0.5
+    frictionLoss 0.0
+endtendonRoutingPoint
+
+ligament l1
+    type linearspring
+    origin finger_base
+    insertion proximal
+    originPosition 0 0 1.5
+    insertionPosition 0 0.1 0.2
+    stiffness 1000
+    ligamentslacklength 0.2
+    dampingfactor 0.1
+    maxshorteningspeed 100
+endligament
+
+ligament l2
+    type linearspring
+    origin proximal
+    insertion distal
+    originPosition 0 0.1 1
+    insertionPosition 0 0.1 0.2
+    stiffness 1000
+    ligamentslacklength 0.2
+    dampingfactor 0.1
+    maxshorteningspeed 100
+endligament

@@ -1,12 +1,12 @@
 version 4
-gravity 0 -9.81 0
+gravity 0 0 -9.81
 
 segment ground
 endsegment
 
 marker endeffector_contact_inlet
     parent ground
-    position 0 -1.7 0
+    position 0 -1.8 0
 endmarker
 
 marker endeffector_final
@@ -16,36 +16,82 @@ endmarker
 
 segment finger_base
     parent ground
-    rt 0 0 0 xyz 0 0.2 0
+    rt 0 0 0 xyz 0 1.7 0.2
     translations yz
     rotations x
     mass 0.5
-    com 0 0.5 0.2
+    com 0 0 0
     inertia
         0.007  0.0000	0.0000
-        0.0000	0.042	0.0000
-        0.0000	0.0000	0.0488
-    mesh 0 0 0
-    mesh 0 0 0.4
-    mesh 0 1 0.4
-    mesh 0 1 0
-    mesh 0 0 0
+        0.0000	0.38	0.0000
+        0.0000	0.0000	0.39
+    mesh 0 -1.5 -0.2
+    mesh 0 -1.5 0.2
+    mesh 0 1.5 0.2
+    mesh 0 1.5 -0.2
+    mesh 0 -1.5 -0.2
 endsegment
 
-contact base_contact
+    actuator   finger_base
+        type    Constant
+        dof    TransY
+        direction    positive
+        Tmax    100.000000
+    endactuator
+    actuator   finger_base
+        type    Constant
+        dof    TransY
+        direction    negative
+        Tmax    50.000000
+    endactuator
+    actuator   finger_base
+        type    Constant
+        dof    TransZ
+        direction    positive
+        Tmax    100.000000
+    endactuator
+    actuator   finger_base
+        type    Constant
+        dof    TransZ
+        direction    negative
+        Tmax    50.000000
+    endactuator
+    actuator   finger_base
+        type    Constant
+        dof    RotX
+        direction    positive
+        Tmax    100.000000
+    endactuator
+    actuator   finger_base
+        type    Constant
+        dof    RotX
+        direction    negative
+        Tmax    50.000000
+    endactuator
+
+contact base_contact_left
     parent finger_base
+    position 0 -1.5 -0.2
     axis yz
 endcontact
-
-contact base_contact_2
+marker base_contact_left_marker
     parent finger_base
-    position 0 1 0
+    position 0 -1.5 -0.2
+endmarker
+
+contact base_contact_right
+    parent finger_base
+    position 0 1.5 -0.2
     axis z
 endcontact
+marker base_contact_right_marker
+    parent finger_base
+    position 0 1.5 -0.2
+endmarker
 
 segment proximal
     parent finger_base
-    rt pi/2 0 0 xyz 0 0 0.3
+    rt pi/2 0 0 xyz 0 -1.5 0.1
     rotations x
     ranges
         0 0.8*pi
@@ -61,6 +107,19 @@ segment proximal
 	mesh 0 -0.05 0
 	mesh 0 0.05 0
 endsegment
+
+    actuator   proximal
+        type    Constant
+        dof    RotX
+        direction    positive
+        Tmax    100.000000
+    endactuator
+    actuator   proximal
+        type    Constant
+        dof    RotX
+        direction    negative
+        Tmax    50.000000
+    endactuator
 
 segment distal
     parent proximal
@@ -81,6 +140,19 @@ segment distal
     mesh 0 0.05 0
 endsegment
 
+    actuator   distal
+        type    Constant
+        dof    RotX
+        direction    positive
+        Tmax    100.000000
+    endactuator
+    actuator   distal
+        type    Constant
+        dof    RotX
+        direction    negative
+        Tmax    50.000000
+    endactuator
+
 contact eff_contact
     parent distal
     position 0 0 1
@@ -95,7 +167,7 @@ endmarker
 tendon t
     origin finger_base
     insertion distal
-    originPosition 0 0.1 0.05
+    originPosition 0 -1.4 -0.15
     insertionPosition 0 -0.07 0.3
 endtendon
 tendonRoutingPoint trp1
@@ -109,11 +181,11 @@ ligament l1
     type linearspring
     origin finger_base
     insertion proximal
-    originPosition 0 0.1 0.4
-    insertionPosition 0 0.1 0.3
-    stiffness 1
-    ligamentslacklength 0.3
-    dampingfactor 0
+    originPosition 0 -1.5 0.2
+    insertionPosition 0 0.1 0.2
+    stiffness 500
+    ligamentslacklength 0.2
+    dampingfactor 0.1
     maxshorteningspeed 100
 endligament
 
@@ -121,10 +193,10 @@ ligament l2
     type linearspring
     origin proximal
     insertion distal
-    originPosition 0 0.1 0.9
+    originPosition 0 0.1 1
     insertionPosition 0 0.1 0.2
-    stiffness 1
-    ligamentslacklength 0.3
-    dampingfactor 0
+    stiffness 500
+    ligamentslacklength 0.2
+    dampingfactor 0.1
     maxshorteningspeed 100
 endligament
