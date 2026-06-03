@@ -4,16 +4,6 @@ gravity 0 0 -9.81
 segment ground
 endsegment
 
-marker endeffector_contact_inlet
-    parent ground
-    position 0 -1.8 0
-endmarker
-
-marker endeffector_final
-    parent ground
-    position 0 -1.3 0
-endmarker
-
 segment finger_base
     parent ground
     rt 0 0 0 xyz 0 0 0
@@ -76,13 +66,19 @@ endmarker
 tendon t
     origin finger_base
     insertion distal
-    originPosition 0 -0.15 1.4
-    insertionPosition 0 -0.07 0.3
+    originPosition 0 -0.25 1.4
+    insertionPosition 0 -0.1 0.3
 endtendon
 tendonRoutingPoint trp1
     tendon t
     parent proximal
-    position 0 0.05 0.5
+    position 0 0.02 0.15
+    frictionLoss 0.0
+endtendonRoutingPoint
+tendonRoutingPoint trp2
+    tendon t
+    parent proximal
+    position 0 0.02 0.7
     frictionLoss 0.0
 endtendonRoutingPoint
 
@@ -92,10 +88,10 @@ ligament l1
     insertion proximal
     originPosition 0 0 1.5
     insertionPosition 0 0.1 0.2
-    stiffness 1000
+    stiffness 200
     ligamentslacklength 0.2
     dampingfactor 0.1
-    maxshorteningspeed 100
+    maxshorteningspeed 0.5
 endligament
 
 ligament l2
@@ -104,8 +100,8 @@ ligament l2
     insertion distal
     originPosition 0 0.1 1
     insertionPosition 0 0.1 0.2
-    stiffness 1000
+    stiffness 200
     ligamentslacklength 0.2
     dampingfactor 0.1
-    maxshorteningspeed 100
+    maxshorteningspeed 0.5
 endligament
