@@ -14,14 +14,22 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class Visual:
+    """Represents a visual element in a URDF link"""
+    mesh_file: Optional[str] = None
+    mesh_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    mesh_rpy: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    mesh_scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+
+
+@dataclass
 class Link:
     """Represents a URDF link (becomes a bioMod segment)"""
     name: str
     mass: float = 0.0
     inertia: np.ndarray = field(default_factory=lambda: np.eye(3))
     com: Tuple[float, float, float] = (0, 0, 0)
-    mesh_file: Optional[str] = None
-    mesh_offset: Tuple[float, float, float] = (0, 0, 0)
+    visuals: List[Visual] = field(default_factory=list)
 
 
 @dataclass
@@ -74,18 +82,35 @@ class URDFParser:
                 if inertia_elem is not None:
                     link.inertia = self._parse_inertia_matrix(inertia_elem)
 
-            # Parse mesh (simplified: takes first visual mesh)
-            visual = link_elem.find('visual')
-            if visual is not None:
-                origin = visual.find('origin')
-                if origin is not None:
-                    link.mesh_offset = self._parse_xyz(origin)
-
-                geometry = visual.find('geometry')
+            # Parse all visuals
+            for visual_elem in link_elem.findall('visual'):
+                geometry = visual_elem.find('geometry')
                 if geometry is not None:
                     mesh = geometry.find('mesh')
                     if mesh is not None:
-                        link.mesh_file = mesh.get('filename')
+                        mesh_file = mesh.get('filename')
+                        
+                        origin = visual_elem.find('origin')
+                        mesh_offset = (0.0, 0.0, 0.0)
+                        mesh_rpy = (0.0, 0.0, 0.0)
+                        if origin is not None:
+                            mesh_offset = self._parse_xyz(origin)
+                            mesh_rpy = self._parse_rpy(origin)
+
+                        scale_str = mesh.get('scale', '1 1 1')
+                        try:
+                            mesh_scale = tuple(float(x) for x in scale_str.split())
+                            if len(mesh_scale) != 3:
+                                mesh_scale = (1.0, 1.0, 1.0)
+                        except Exception:
+                            mesh_scale = (1.0, 1.0, 1.0)
+
+                        link.visuals.append(Visual(
+                            mesh_file=mesh_file,
+                            mesh_offset=mesh_offset,
+                            mesh_rpy=mesh_rpy,
+                            mesh_scale=mesh_scale
+                        ))
 
             self.links[name] = link
 
@@ -300,7 +325,7 @@ class BioModSegment:
             rpy_val = self.mesh_rt[0:3]
             xyz_val = self.mesh_rt[3]
             lines.append(
-                f"    meshrt {rpy_val[0]:.1f} {rpy_val[1]:.1f} {rpy_val[2]:.1f} xyz {xyz_val[0]:.6g} {xyz_val[1]:.6g} {xyz_val[2]:.6g}")
+                f"    meshrt {rpy_val[0]:.6g} {rpy_val[1]:.6g} {rpy_val[2]:.6g} xyz {xyz_val[0]:.6g} {xyz_val[1]:.6g} {xyz_val[2]:.6g}")
 
         lines.append("endsegment")
         lines.append("")
@@ -363,14 +388,47 @@ class URDFToBioModConverter:
         segment.mass = link.mass
         segment.inertia = link.inertia
         segment.com = link.com
-        segment.mesh_file = link.mesh_file
-        segment.mesh_rt = (0, 0, 0, link.mesh_offset)
+        
+        if link.visuals:
+            first_visual = link.visuals[0]
+            segment.mesh_file = first_visual.mesh_file
+            segment.mesh_scale = first_visual.mesh_scale
+            segment.mesh_rt = (
+                first_visual.mesh_rpy[0],
+                first_visual.mesh_rpy[1],
+                first_visual.mesh_rpy[2],
+                first_visual.mesh_offset
+            )
 
         # Apply joint properties if this segment comes from a joint
         if parent_joint is not None:
             self._add_joint_to_segment(parent_joint, segment)
 
         self.segments[link_name] = segment
+
+        # Generate dummy segments for additional visuals
+        if len(link.visuals) > 1:
+            for i, visual in enumerate(link.visuals[1:], start=1):
+                dummy_name = f"{link_name}_visual_{i}"
+                dummy_segment = BioModSegment(dummy_name, parent=link_name)
+                # Set up properties for visual-only dummy segment
+                dummy_segment.mass = 0.0
+                dummy_segment.inertia = np.zeros((3, 3))
+                dummy_segment.com = (0, 0, 0)
+                dummy_segment.mesh_file = visual.mesh_file
+                dummy_segment.mesh_scale = visual.mesh_scale
+                dummy_segment.mesh_rt = (
+                    visual.mesh_rpy[0],
+                    visual.mesh_rpy[1],
+                    visual.mesh_rpy[2],
+                    visual.mesh_offset
+                )
+                
+                # Rigidity relative to parent segment: Identity transformation matrix
+                dummy_segment.rt_matrix = np.eye(4)
+                dummy_segment.rt_in_matrix = 1
+                
+                self.segments[dummy_name] = dummy_segment
 
         # Find all joints where this link is the parent
         for joint in self.parser.joints.values():
@@ -421,7 +479,7 @@ class URDFToBioModConverter:
         """Save converted bioMod to file"""
         content = self.convert()
         Path(output_file).write_text(content)
-        print(f"✓ Saved to {output_file}")
+        print(f"[OK] Saved to {output_file}")
 
 
 def main():
@@ -440,7 +498,7 @@ def main():
     converter = URDFToBioModConverter(urdf_file)
     converter.save(output_file)
 
-    print(f"\n✓ Conversion complete!")
+    print(f"\n[OK] Conversion complete!")
     print(f"  Input:  {urdf_file}")
     print(f"  Output: {output_file}")
 

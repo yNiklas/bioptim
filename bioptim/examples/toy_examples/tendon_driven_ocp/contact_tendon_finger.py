@@ -222,7 +222,7 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     )
 
 def main():
-    ocp = prepare_single_phase_ocp(ExampleUtils.folder + "/models/tendon_2dof_finger_with_contact.bioMod")
+    ocp = prepare_single_phase_ocp(ExampleUtils.folder + "/models/test_finger.bioMod")
     ocp.print(to_console=False, to_graph=False)
     ocp.add_plot_penalty(CostType.CONSTRAINTS)
     sol = ocp.solve(Solver.IPOPT())

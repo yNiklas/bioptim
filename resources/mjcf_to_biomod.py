@@ -342,6 +342,7 @@ def convert(mjcf_path, biomod_path):
                     'file': m_file,
                     'scale': m_scale
                 }
+                print(f"{m_name}: {m_file}")
                 
     # Worldbody traversal
     worldbody = root.find('worldbody')
