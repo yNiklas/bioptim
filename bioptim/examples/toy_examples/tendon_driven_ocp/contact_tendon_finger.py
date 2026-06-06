@@ -12,20 +12,20 @@ from bioptim import TendonBiorbdModel, OptimalControlProgram, Objective, Objecti
 from bioptim.examples.utils import ExampleUtils
 
 def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
-    bio_model = TendonBiorbdModel(biorbd_model_path, contact_types=[ContactType.RIGID_EXPLICIT])
+    bio_model = TendonBiorbdModel(biorbd_model_path)
 
     objective_functions = ObjectiveList()
     objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=0))
     #objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME)
 
     constraints = ConstraintList()
-    constraints.add(
-        ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
-        min_bound=0,
-        max_bound=np.inf,
-        node=Node.ALL,
-        contact_index=0
-    )
+    #constraints.add(
+    #    ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+    #    min_bound=0,
+    #    max_bound=np.inf,
+    #    node=Node.ALL,
+    #    contact_index=0
+    #)
     #constraints.add(
     #    ConstraintFcn.SUPERIMPOSE_MARKERS,
     #    node=Node.END,
@@ -39,6 +39,13 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
         index=2,
         min_bound=0,
         #max_bound=0.001
+    )
+    constraints.add(
+        ConstraintFcn.TRACK_MARKERS,
+        node=Node.ALL_SHOOTING,
+        marker_index=bio_model.marker_index("base_contact_right_marker"),
+        index=2,
+        min_bound=0
     )
 
     dof_mapping = BiMappingList()
@@ -65,7 +72,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     return OptimalControlProgram(
         bio_model,
         n_shooting=50,
-        phase_time=0.5,
+        phase_time=2,
         objective_functions=objective_functions,
         constraints=constraints,
         #variable_mappings=dof_mapping,
@@ -89,11 +96,11 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     endeffector_marker_idx = bio_model[0].marker_index("endeffector")
 
     objective_functions = ObjectiveList()
-    #objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=0))
-    #objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=1))
-    objective_functions.add(Objective(ObjectiveFcn.Mayer.TRACK_MARKERS, marker_index=endeffector_marker_idx, phase=0))
-    objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_TIME, phase=0))
-    objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_TIME, phase=1))
+    objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=0))
+    objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=1))
+    #objective_functions.add(Objective(ObjectiveFcn.Mayer.TRACK_MARKERS, marker_index=endeffector_marker_idx, phase=0))
+    #objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_TIME, phase=0))
+    #objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_TIME, phase=1))
 
     constraints = ConstraintList()
     #constraints.add(
@@ -103,15 +110,15 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     #    min_bound=0,
     #    max_bound=0.01
     #)
-    #constraints.add(
-    #    ConstraintFcn.TRACK_MARKERS,
-    #    node=Node.ALL_SHOOTING,
-    #    marker_index=bio_model[0].marker_index("base_contact_left_marker"),
-    #    index=2,
-    #    min_bound=0,
-    #    max_bound=0.01,
-    #    phase=0
-    #)
+    constraints.add( # Keep base toe on the ground
+        ConstraintFcn.TRACK_MARKERS,
+        node=Node.ALL_SHOOTING,
+        marker_index=bio_model[0].marker_index("base_contact_left_marker"),
+        index=2,
+        min_bound=0,
+        max_bound=0.01,
+        phase=0
+    )
     constraints.add( # Keep base heel on the ground
         ConstraintFcn.TRACK_MARKERS,
         node=Node.ALL_SHOOTING,
@@ -121,22 +128,22 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
         max_bound=0.01,
         phase=0
     )
-    constraints.add( # Unilateral base toe contact (first phase)
-        ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
-        min_bound=0,
-        max_bound=np.inf,
-        node=Node.ALL_SHOOTING,
-        phase=0,
-        contact_index=1
-    )
-    constraints.add( # Unilateral base heel contact (first phase)
-        ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
-        min_bound=0,
-        max_bound=np.inf,
-        node=Node.ALL_SHOOTING,
-        phase=0,
-        contact_index=2
-    )
+    #constraints.add( # Unilateral base toe contact (first phase)
+    #    ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+    #    min_bound=0,
+    #    max_bound=np.inf,
+    #    node=Node.ALL_SHOOTING,
+    #    phase=0,
+    #    contact_index=1
+    #)
+    #constraints.add( # Unilateral base heel contact (first phase)
+    #    ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+    #    min_bound=0,
+    #    max_bound=np.inf,
+    #    node=Node.ALL_SHOOTING,
+    #    phase=0,
+    #    contact_index=2
+    #)
     #constraints.add(
     #    ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
     #    min_bound=0,
@@ -161,21 +168,21 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
         phase=1,
         contact_index=3
     )
-    #constraints.add(
-    #    ConstraintFcn.SUPERIMPOSE_MARKERS,
-    #    node=Node.END,
-    #    first_marker="endeffector",
-    #    second_marker="endeffector_contact_inlet",
-    #    phase=0
-    #)
-    constraints.add( # Reach ground with distal at the end of first phase
-        ConstraintFcn.TRACK_MARKERS,
+    constraints.add(
+        ConstraintFcn.SUPERIMPOSE_MARKERS,
         node=Node.END,
-        marker_index=endeffector_marker_idx,
-        index=2,
-        min_bound=0,
+        first_marker="endeffector",
+        second_marker="endeffector_contact_inlet",
         phase=0
     )
+    #constraints.add( # Reach ground with distal at the end of first phase
+    #    ConstraintFcn.TRACK_MARKERS,
+    #    node=Node.END,
+    #    marker_index=endeffector_marker_idx,
+    #    index=2,
+    #    min_bound=0,
+    #    phase=0
+    #)
     #constraints.add( # Reach final location at the end of second phase
     #    ConstraintFcn.SUPERIMPOSE_MARKERS,
     #    node=Node.END,
@@ -183,10 +190,19 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     #    second_marker="endeffector_final",
     #    phase=1
     #)
+    constraints.add(  # Keep base heel on the ground (second phase)
+        ConstraintFcn.TRACK_MARKERS,
+        node=Node.ALL_SHOOTING,
+        marker_index=bio_model[0].marker_index("base_contact_right_marker"),
+        index=2,
+        min_bound=0,
+        max_bound=0.01,
+        phase=1
+    )
 
     dof_mapping = BiMappingList()
-    dof_mapping.add("q", to_second=[None, None, None, 0, 1], to_first=[3,4])
-    dof_mapping.add("qdot", to_second=[None, None, None, 0, 1], to_first=[3,4])
+    #dof_mapping.add("q", to_second=[None, None, None, 0, 1], to_first=[3,4])
+    #dof_mapping.add("qdot", to_second=[None, None, None, 0, 1], to_first=[3,4])
 
     phase_transitions = PhaseTransitionList()
     phase_transitions.add(PhaseTransitionFcn.IMPACT, phase_pre_idx=0)
@@ -205,25 +221,25 @@ def prepare_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     #x_bounds["qdot"][:, -1] = 0
 
     u_bounds = BoundsList()
-    u_bounds.add("tendons", min_bound=[0], max_bound=[5], phase=0)
-    u_bounds.add("tendons", min_bound=[0], max_bound=[5], phase=1)
+    u_bounds.add("tendons", min_bound=[0], max_bound=[50], phase=0)
+    u_bounds.add("tendons", min_bound=[0], max_bound=[50], phase=1)
 
     return OptimalControlProgram(
         bio_model,
         n_shooting=[50,50],
-        phase_time=(1,0.8),
+        phase_time=(2,2),
         objective_functions=objective_functions,
         constraints=constraints,
         x_bounds=x_bounds,
         u_bounds=u_bounds,
-        #phase_transitions=phase_transitions,
+        phase_transitions=phase_transitions,
         variable_mappings=dof_mapping,
         n_threads=10
     )
 
 def main():
     ocp = prepare_single_phase_ocp(ExampleUtils.folder + "/models/test_finger.bioMod")
-    ocp.print(to_console=False, to_graph=False)
+    ocp.print(to_console=True, to_graph=False)
     ocp.add_plot_penalty(CostType.CONSTRAINTS)
     sol = ocp.solve(Solver.IPOPT())
     sol.print_cost()

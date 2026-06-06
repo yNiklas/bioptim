@@ -324,8 +324,9 @@ class BioModSegment:
                 f"    meshscale {self.mesh_scale[0]:.6g}    {self.mesh_scale[1]:.6g}    {self.mesh_scale[2]:.6g}")
             rpy_val = self.mesh_rt[0:3]
             xyz_val = self.mesh_rt[3]
+            # RPY are global axes corresponding to Rz*Ry*Rx. Hence we choose "zyx" sequence for meshrt
             lines.append(
-                f"    meshrt {rpy_val[0]:.6g} {rpy_val[1]:.6g} {rpy_val[2]:.6g} xyz {xyz_val[0]:.6g} {xyz_val[1]:.6g} {xyz_val[2]:.6g}")
+                f"    meshrt {rpy_val[2]:.6g} {rpy_val[1]:.6g} {rpy_val[0]:.6g} zyx {xyz_val[0]:.6g} {xyz_val[1]:.6g} {xyz_val[2]:.6g}")
 
         lines.append("endsegment")
         lines.append("")

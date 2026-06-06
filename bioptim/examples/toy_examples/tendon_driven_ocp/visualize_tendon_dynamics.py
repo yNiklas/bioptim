@@ -35,7 +35,7 @@ def main():
     model = TendonBiorbdModel(model_path)
     nlp = FakeNlp(model)
 
-    n_shooting = 50
+    n_shooting = 100
 
     states_sym = MX.sym("Q_Qdot", model.nb_q + model.nb_qdot, 1)
     q_sym = states_sym[:model.nb_q]
@@ -62,7 +62,7 @@ def main():
         [rhs]
     )
 
-    time_between_nodes = 0.05
+    time_between_nodes = 0.02
     n_steps = 5
     times = [time_between_nodes*i for i in range(n_shooting)]
     q_start_value = DM([0., 0.])
@@ -70,8 +70,11 @@ def main():
     start_states = vertcat(q_start_value, qdot_start_value)
     decline = np.array([10 * math.cos((t/times[-1])*math.pi) for t in times])
     decline = np.maximum(decline, np.array([0 for _ in times]))
-    decline = ([7] * (n_shooting//2)) + ([0] * (n_shooting//2))
+    decline = ([7] * (n_shooting//2)) + ([1] * (n_shooting//2))
+    decline = ([7] * (n_shooting//2)) + [10*(n_shooting-i)/n_shooting for i in range(n_shooting//2, n_shooting)]
+    #decline = [0.1] * n_shooting
     controls = DM([decline])
+    print(controls)
 
     states_integrated = _integrate_RK4(
         times,
