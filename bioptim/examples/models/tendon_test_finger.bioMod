@@ -82,26 +82,38 @@ tendonRoutingPoint trp2
     frictionLoss 0.0
 endtendonRoutingPoint
 
-ligament l1
-    type linearspring
-    origin finger_base
-    insertion proximal
-    originPosition 0 -0.07 1.5
-    insertionPosition 0 0.03 0.01
-    stiffness 2000
-    ligamentslacklength 0.01
-    dampingfactor 1000
-    maxshorteningspeed 2
-endligament
+//ligament l1
+//    type linearspring
+//    origin finger_base
+//    insertion proximal
+//    originPosition 0 -0.07 1.5
+//    insertionPosition 0 0.03 0.01
+//    stiffness 2000
+//    ligamentslacklength 0.01
+//    dampingfactor 1000
+//    maxshorteningspeed 2
+//endligament
+passivetorque proximal
+    type linear
+    dof RotX
+    slope -0.65
+    T0 -0.005
+endpassivetorque
 
-ligament l2
-    type linearspring
-    origin proximal
-    insertion distal
-    originPosition 0 0.01 1
-    insertionPosition 0 0.01 0.01
-    stiffness 10000
-    ligamentslacklength 0.01
-    dampingfactor 1000
-    maxshorteningspeed 2
-endligament
+//ligament l2
+//    type linearspring
+//    origin proximal
+//    insertion distal
+//    originPosition 0 0.01 1
+//    insertionPosition 0 0.01 0.01
+//    stiffness 10000
+//    ligamentslacklength 0.01
+//    dampingfactor 1000
+//    maxshorteningspeed 2
+//endligament
+passivetorque distal
+    type linear
+    dof RotX
+    slope -0.2
+    T0 -0.002
+endpassivetorque

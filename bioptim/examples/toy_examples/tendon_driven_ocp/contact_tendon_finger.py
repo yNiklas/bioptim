@@ -72,7 +72,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     return OptimalControlProgram(
         bio_model,
         n_shooting=50,
-        phase_time=2,
+        phase_time=1,
         objective_functions=objective_functions,
         constraints=constraints,
         #variable_mappings=dof_mapping,

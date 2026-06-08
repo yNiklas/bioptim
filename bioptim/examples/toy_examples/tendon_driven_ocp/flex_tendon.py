@@ -43,16 +43,16 @@ def prepare_ocp():
     x_bounds.add("qdot", model[0].bounds_from_ranges("qdot"), phase=0)
     x_bounds.add("qdot", model[0].bounds_from_ranges("qdot"), phase=1)
     x_bounds[0]["q"][:, 0] = 0
-    x_bounds[0]["q"][0, -1] = 0.4
-    x_bounds[0]["qdot"][:, -1] = 0
+    x_bounds[0]["q"][0, -1] = 0.5
+    #x_bounds[0]["qdot"][:, -1] = 0
     x_bounds[1]["q"][:, -1] = 0
     x_bounds[1]["qdot"][:, -1] = 0
     u_bounds = BoundsList()
-    u_bounds.add("tendons", min_bound=[0], max_bound=[20])
+    u_bounds.add("tendons", min_bound=[0], max_bound=[100])
     return OptimalControlProgram(
         model,
         [50,50],
-        [1,1.8],
+        [3,3],
         x_bounds=x_bounds,
         u_bounds=u_bounds,
         objective_functions=obj,

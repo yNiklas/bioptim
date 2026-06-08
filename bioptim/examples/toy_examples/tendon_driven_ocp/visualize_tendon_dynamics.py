@@ -70,8 +70,9 @@ def main():
     start_states = vertcat(q_start_value, qdot_start_value)
     decline = np.array([10 * math.cos((t/times[-1])*math.pi) for t in times])
     decline = np.maximum(decline, np.array([0 for _ in times]))
-    decline = ([7] * (n_shooting//2)) + ([1] * (n_shooting//2))
-    decline = ([7] * (n_shooting//2)) + [10*(n_shooting-i)/n_shooting for i in range(n_shooting//2, n_shooting)]
+    #decline = ([7] * (n_shooting//2)) + ([1] * (n_shooting//2))
+    #decline = ([7] * (n_shooting//2)) + [6*(n_shooting-i)/n_shooting for i in range(n_shooting//2, n_shooting)]
+    decline = ([20] * (n_shooting//2)) + [6*(n_shooting-i)/n_shooting for i in range(n_shooting//2, n_shooting)]
     #decline = [0.1] * n_shooting
     controls = DM([decline])
     print(controls)
@@ -89,8 +90,6 @@ def main():
     )
     
     q_integrated = np.array(states_integrated[:model.nb_q, :])
-    print("q_integrated shape:", q_integrated.shape)
-    print("q_integrated:\n", q_integrated)
     
     # Try visualizing with bioviz
     b = bioviz.Viz(model_path)
