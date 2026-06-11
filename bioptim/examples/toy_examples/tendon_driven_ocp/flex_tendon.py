@@ -44,6 +44,7 @@ def prepare_ocp():
     x_bounds.add("qdot", model[0].bounds_from_ranges("qdot"), phase=1)
     x_bounds[0]["q"][:, 0] = 0
     x_bounds[0]["q"][0, -1] = 0.5
+    x_bounds[0]["qdot"][:, 0] = 0
     #x_bounds[0]["qdot"][:, -1] = 0
     x_bounds[1]["q"][:, -1] = 0
     x_bounds[1]["qdot"][:, -1] = 0

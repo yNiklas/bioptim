@@ -546,7 +546,7 @@ class DynamicsFunctions:
         tendon_forces = nlp.cx()
         for k in range(len(nlp.controls["tendons"])):
             tendon_forces = vertcat(tendon_forces, tendon_pull_forces[k])
-        return nlp.model.tendon_joint_torque(tendon_forces)(tendon_forces, q, qdot, nlp.parameters.cx)
+        return nlp.model.tendon_joint_torque()(tendon_forces, q, qdot, nlp.parameters.cx)
 
     @staticmethod
     def no_states_mapping(nlp: "NonLinearProgram"):

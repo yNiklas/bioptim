@@ -90,6 +90,7 @@ class BiorbdModel:
         self.qddot_joints = MX.sym("qddot_joints_mx", self.nb_qddot - self.nb_root, 1)
         self.tau = MX.sym("tau_mx", self.nb_tau, 1)
         self.muscle = MX.sym("muscle_mx", self.nb_muscles, 1)
+        self.tendons = MX.sym("tendons_mx", self.nb_tendons, 1)
         self.activations = MX.sym("activations_mx", self.nb_muscles, 1)
         self.external_forces = MX.sym(
             "external_forces_mx",
@@ -904,13 +905,13 @@ class BiorbdModel:
         return casadi_fun
 
     @cache_function
-    def tendon_joint_torque(self, tendon_forces) -> Function:
+    def tendon_joint_torque(self) -> Function:
         q_biorbd = GeneralizedCoordinates(self.q)
         qdot_biorbd = GeneralizedVelocity(self.qdot)
-        biorbd_return = self.model.jointTorquesFromTendons(tendon_forces, q_biorbd, qdot_biorbd).to_mx()
+        biorbd_return = self.model.jointTorquesFromTendons(self.tendons, q_biorbd, qdot_biorbd).to_mx()
         return Function(
             "jointTorquesFromTendons",
-            [tendon_forces, self.q, self.qdot, self.parameters],
+            [self.tendons, self.q, self.qdot, self.parameters],
             [biorbd_return],
             ["tendon_forces", "q", "qdot", "parameters"],
             ["jointTorquesFromTendons"],
