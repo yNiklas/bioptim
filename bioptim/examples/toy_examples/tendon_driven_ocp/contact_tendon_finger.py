@@ -64,7 +64,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     #x_bounds["qdot"][:, -1] = 0
 
     u_bounds = BoundsList()
-    u_bounds.add("tendons", min_bound=[0], max_bound=[40])
+    u_bounds.add("tendons", min_bound=[0], max_bound=[2])
 
     u_init = InitialGuessList()
     u_init.add("tendons", [0.5])
@@ -72,7 +72,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     return OptimalControlProgram(
         bio_model,
         n_shooting=50,
-        phase_time=1,
+        phase_time=4,
         objective_functions=objective_functions,
         constraints=constraints,
         #variable_mappings=dof_mapping,

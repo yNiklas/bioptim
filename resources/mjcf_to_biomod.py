@@ -152,6 +152,8 @@ def parse_body(element, parent_name, body_nodes, meshes, compiler_angle_degree):
             j_axis = map_axis(j_axis_vec)
             j_range_vec = parse_vector(child.get('range'))
             j_range = convert_range(j_range_vec, is_rotation=(j_type in ['hinge', 'ball']), angle_in_degrees=compiler_angle_degree)
+            stiffness = float(child.get('stiffness', 0.0))
+            springref = float(child.get('springref', 0.0))
             
             if j_type == 'ball':
                 for axis in ['x', 'y', 'z']:
@@ -159,14 +161,18 @@ def parse_body(element, parent_name, body_nodes, meshes, compiler_angle_degree):
                         'name': f"{j_name}_{axis}",
                         'type': 'hinge',
                         'axis': axis,
-                        'range': j_range or [-np.pi, np.pi]
+                        'range': j_range or [-np.pi, np.pi],
+                        'stiffness': stiffness,
+                        'springref': springref
                     })
             else:
                 node.joints.append({
                     'name': j_name,
                     'type': j_type,
                     'axis': j_axis,
-                    'range': j_range
+                    'range': j_range,
+                    'stiffness': stiffness,
+                    'springref': springref
                 })
                 
         elif child.tag == 'inertial':
@@ -507,6 +513,31 @@ def convert(mjcf_path, biomod_path):
                     f.write(f"    position {rp_pos[0]:.6f} {rp_pos[1]:.6f} {rp_pos[2]:.6f}\n")
                     f.write("    frictionLoss 0.0\n")
                     f.write("endtendonRoutingPoint\n\n")
+
+        # Write passivetorque elements
+        for node in body_nodes.values():
+            for j in node.joints:
+                if j['type'] == 'hinge' and j['stiffness'] > 0.0:
+                    stiffness = j['stiffness']
+                    springref = j['springref']
+                    
+                    if compiler_angle_degree:
+                        springref_rad = np.radians(springref)
+                    else:
+                        springref_rad = springref
+                        
+                    slope = -stiffness
+                    T0 = springref_rad * stiffness
+                    
+                    dof_map = {'x': 'RotX', 'y': 'RotY', 'z': 'RotZ'}
+                    dof = dof_map.get(j['axis'], 'RotZ')
+                    
+                    f.write(f"passivetorque {node.name}\n")
+                    f.write(f"    type linear\n")
+                    f.write(f"    dof {dof}\n")
+                    f.write(f"    slope {slope:.6f}\n")
+                    f.write(f"    T0 {T0:.6f}\n")
+                    f.write("endpassivetorque\n\n")
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
