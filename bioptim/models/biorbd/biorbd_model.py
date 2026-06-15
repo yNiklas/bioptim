@@ -511,6 +511,10 @@ class BiorbdModel:
     def nb_tendons(self) -> int:
         return self.model.nbTendons()
 
+    @property
+    def non_tendon_tau_indices(self) -> list[int]:
+        return [int(idx) for idx in self.model.nonTendonTauIndices()]
+
     @cache_function
     def torque(self) -> Function:
         """

@@ -8,45 +8,61 @@ faulthandler.enable()
 
 from bioptim import TendonBiorbdModel, OptimalControlProgram, Objective, ObjectiveFcn, BoundsList, InitialGuessList, \
     Solver, ConstraintList, ConstraintFcn, Node, ContactType, ObjectiveList, PhaseTransitionList, PhaseTransitionFcn, \
-    CostType, TorqueBiorbdModel, PenaltyController, BiMappingList, DynamicsOptions
+    CostType, TorqueBiorbdModel, PenaltyController, BiMappingList, DynamicsOptions, Axis, OdeSolver
 from bioptim.examples.utils import ExampleUtils
 
 def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
-    bio_model = TendonBiorbdModel(biorbd_model_path)
+    bio_model = TendonBiorbdModel(biorbd_model_path, contact_types=[ContactType.RIGID_EXPLICIT])
 
     objective_functions = ObjectiveList()
     objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=0))
+    objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_MARKERS, marker_index="endeffector", axes=[2]))
+    constraints = ConstraintList()
     #objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME)
 
     constraints = ConstraintList()
+    constraints.add(
+        ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+        min_bound=0,
+        max_bound=np.inf,
+        node=Node.ALL,
+        contact_index=0
+    )
+    constraints.add(
+        ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+        min_bound=0,
+        max_bound=np.inf,
+        node=Node.ALL,
+        contact_index=1
+    )
     #constraints.add(
-    #    ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
-    #    min_bound=0,
-    #    max_bound=np.inf,
+    #    ConstraintFcn.NON_SLIPPING,
     #    node=Node.ALL,
-    #    contact_index=0
+    #    normal_component_idx=(0,1),
+    #    tangential_component_idx=1,
+    #    static_friction_coefficient=0.5
     #)
     #constraints.add(
     #    ConstraintFcn.SUPERIMPOSE_MARKERS,
     #    node=Node.END,
     #    first_marker="endeffector",
-    #    second_marker="endeffector_final"
+    #    second_marker="endeffector_contact_inlet"
     #)
     constraints.add(  # Reach ground with distal at the end of first phase
         ConstraintFcn.TRACK_MARKERS,
         node=Node.END,
-        marker_index=bio_model.marker_index("endeffector"),
-        index=2,
+        marker_index="endeffector",
+        axes=[2],
         min_bound=0,
-        #max_bound=0.001
+        max_bound=np.inf
     )
-    constraints.add(
-        ConstraintFcn.TRACK_MARKERS,
-        node=Node.ALL_SHOOTING,
-        marker_index=bio_model.marker_index("base_contact_right_marker"),
-        index=2,
-        min_bound=0
-    )
+    #constraints.add(
+    #    ConstraintFcn.TRACK_MARKERS,
+    #    node=Node.ALL_SHOOTING,
+    #    marker_index=bio_model.marker_index("base_contact_right_marker"),
+    #    index=2,
+    #    min_bound=0
+    #)
 
     dof_mapping = BiMappingList()
     #dof_mapping.add("q", to_second=[None, None, None, 0, 1], to_first=[3, 4])
@@ -57,6 +73,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     x_bounds.add("q", bio_model.bounds_from_ranges("q"))
     x_bounds.add("qdot", bio_model.bounds_from_ranges("qdot"))
     x_bounds["q"][:, 0] = 0
+    x_bounds["qdot"][:, 0] = 0
     #x_bounds[0]["q"][1, 0] = 0.5
     #x_bounds[1]["q"][0, -1] = 1.2
     #x_bounds[1]["q"][1, -1] = 0.6
@@ -64,21 +81,24 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     #x_bounds["qdot"][:, -1] = 0
 
     u_bounds = BoundsList()
-    u_bounds.add("tendons", min_bound=[0], max_bound=[2])
+    u_bounds.add("tendons", min_bound=[0], max_bound=[10])
 
     u_init = InitialGuessList()
     u_init.add("tendons", [0.5])
 
+    dynamics_options = DynamicsOptions(ode_solver=OdeSolver.COLLOCATION())
+
     return OptimalControlProgram(
         bio_model,
         n_shooting=50,
-        phase_time=4,
+        phase_time=1,
         objective_functions=objective_functions,
         constraints=constraints,
         #variable_mappings=dof_mapping,
+        dynamics=dynamics_options,
         x_bounds=x_bounds,
         u_bounds=u_bounds,
-        u_init=u_init
+        u_init=u_init,
     )
 
 def track_z_coordinate_of_marker(controller: PenaltyController, marker_name: str) -> MX:

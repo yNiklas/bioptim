@@ -1,6 +1,5 @@
 from typing import Callable
 import biorbd_casadi as biorbd
-import numpy as np
 
 from .external_forces import (
     ExternalForceSetTimeSeries,
@@ -404,14 +403,24 @@ class TendonBiorbdModel(BiorbdModel, TendonDynamics):
     def __init__(
             self,
             bio_model: Str | biorbd.Model,
+            exclude_free_float_actuation: bool = False,
+            torque_driven_dofs=None,
             parameters: ParameterList = None,
             **kwargs,
     ):
         super().__init__(
             bio_model=bio_model,
             parameters=parameters,
-            **kwargs,
+            exclude_free_float_actuation=exclude_free_float_actuation,
+            has_non_tendon_tau=torque_driven_dofs is not None and len(torque_driven_dofs) > 0,
+            **kwargs
         )
+        if torque_driven_dofs is not None and len(torque_driven_dofs) > 0:
+            dof_names = biorbd.VecBiorbdString()
+            for dof_name in torque_driven_dofs:
+                dof_names.push_back(biorbd.String(dof_name))
+            self.model.setNonTendonTauIndices(dof_names)
+
 
     def serialize(self) -> tuple[Callable, dict]:
         return TendonBiorbdModel, dict(bio_model=self.path)
