@@ -1,0 +1,183 @@
+version 4
+gravity 0 0 -9.81
+
+segment ground
+endsegment
+
+segment Root
+    translations yz
+    rotations x
+    ranges
+        -10 10
+        -10 10
+        -pi pi
+endsegment
+
+marker endeffector_contact_inlet
+    parent ground
+    position 0 -1.97 0
+endmarker
+
+marker endeffector_final
+    parent ground
+    position 0 -1.3 0
+endmarker
+
+segment finger_base
+    parent Root
+    rt 0 0 0 xyz 0 1.5 0.2
+    mass 0.5
+    com 0 0 0
+    inertia
+        0.007  0.0000	0.0000
+        0.0000	0.38	0.0000
+        0.0000	0.0000	0.39
+    mesh 0 -1.5 -0.2
+    mesh 0 -1.5 0.2
+    mesh 0 1.5 0.2
+    mesh 0 1.5 -0.2
+    mesh 0 -1.5 -0.2
+endsegment
+
+contact base_contact_left
+    parent finger_base
+    position 0 -1.5 -0.2
+    axis z
+endcontact
+marker base_contact_left_marker
+    parent finger_base
+    position 0 -1.5 -0.2
+endmarker
+
+contact base_contact_right
+    parent finger_base
+    position 0 1.5 -0.2
+    axis yz
+endcontact
+marker base_contact_right_marker
+    parent finger_base
+    position 0 1.5 -0.2
+endmarker
+
+segment proximal
+    parent finger_base
+    rt pi/2 0 0 xyz 0 -1.5 0.1
+    rotations x
+    ranges
+        0 0.8*pi
+    mass 0.02
+    inertia
+		0.0833  0.0000	0.0000
+		0.0000	0.0833	0.0000
+	    0.0000	0.0000	0.0010
+    com  0.0000 0.0000 0.5000
+    mesh 0 0.05 0
+	mesh 0 0.05 1
+	mesh 0 -0.05 1
+	mesh 0 -0.05 0
+	mesh 0 0.05 0
+endsegment
+
+segment distal
+    parent proximal
+    rt 0 0 0 xyz 0 0 1
+    rotations x
+    ranges
+        0 0.8*pi
+    mass 0.02
+    inertia
+        0.0833  0.0000	0.0000
+        0.0000	0.0833	0.0000
+        0.0000	0.0000	0.0010
+    com  0.0000 0.0000 0.5000
+    mesh 0 0.05 0
+    mesh 0 0.05 1
+    mesh 0 -0.05 1
+    mesh 0 -0.05 0
+    mesh 0 0.05 0
+endsegment
+
+//contact eff_contact
+//    parent distal
+//    position 0 0 1
+//    axis z
+//endcontact
+
+marker endeffector
+    parent distal
+    position 0 0 1
+endmarker
+
+tendon t
+    origin finger_base
+    insertion distal
+    originPosition 0 -1.4 -0.1
+    insertionPosition 0 -0.1 0.1
+endtendon
+tendonRoutingPoint trp1
+    tendon t
+    parent proximal
+    position 0 0.05 0.5
+    frictionLoss 0.0
+endtendonRoutingPoint
+
+passivetorque proximal
+    type linear
+    dof RotX
+    slope -0.9
+    T0 -0.3924
+endpassivetorque
+
+passivetorque distal
+    type linear
+    dof RotX
+    slope -0.2
+    T0 -0.0981
+endpassivetorque
+
+//musclegroup mg1
+//    OriginParent finger_base
+//    InsertionParent distal
+//endmusclegroup
+//muscle m1
+//    type degroote
+//    musclegroup mg1
+//    OriginPosition 0 -1.4 -0.15
+//    InsertionPosition 0 -0.07 0.3
+//    optimalLength 0.5
+//    maximalForce 100
+//    tendonSlackLength 1.0
+//    pennationAngle 0
+//    maxVelocity 10
+//endmuscle
+//viapoint via1
+//    parent proximal
+//    musclegroup mg1
+//    muscle m1
+//    position 0 0.05 0.5
+//    frictionLoss 0.0
+//endviapoint
+
+//ligament l1
+//    type linearspring
+//    origin finger_base
+//    insertion proximal
+//    originPosition 0 -1.5 0.11
+//    insertionPosition 0 0.01 0.01
+//    stiffness 2000
+//    ligamentslacklength 0.01
+//    dampingfactor 1000
+//    maxshorteningspeed 2
+//endligament
+//
+//ligament l2
+//    type linearspring
+//    origin proximal
+//    insertion distal
+//    originPosition 0 0.01 1
+//    insertionPosition 0 0.01 0.01
+//    stiffness 10000
+//    ligamentslacklength 0.01
+//    dampingfactor 800
+//    maxshorteningspeed 2
+//endligament

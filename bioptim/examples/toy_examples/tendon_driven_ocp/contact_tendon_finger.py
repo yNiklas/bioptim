@@ -16,8 +16,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
 
     objective_functions = ObjectiveList()
     objective_functions.add(Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", phase=0))
-    objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_MARKERS, marker_index="endeffector", axes=[2]))
-    constraints = ConstraintList()
+    #objective_functions.add(Objective(ObjectiveFcn.Mayer.MINIMIZE_MARKERS, marker_index="endeffector", axes=[2]))
     #objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME)
 
     constraints = ConstraintList()
@@ -54,7 +53,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
         marker_index="endeffector",
         axes=[2],
         min_bound=0,
-        max_bound=np.inf
+        max_bound=0
     )
     #constraints.add(
     #    ConstraintFcn.TRACK_MARKERS,
@@ -76,7 +75,7 @@ def prepare_single_phase_ocp(biorbd_model_path: str,) -> OptimalControlProgram:
     x_bounds["qdot"][:, 0] = 0
     #x_bounds[0]["q"][1, 0] = 0.5
     #x_bounds[1]["q"][0, -1] = 1.2
-    #x_bounds[1]["q"][1, -1] = 0.6
+    #x_bounds["q"][3, -1] = 0.1
     #x_bounds["qdot"][:, 0] = 0
     #x_bounds["qdot"][:, -1] = 0
 
