@@ -271,6 +271,20 @@ class BioModel(Protocol):
         """
 
     @cache_function
+    def tendon_lengths_jacobian(self) -> Function:
+        """
+        Get the tendon lengths jacobian
+        args: q, qdot
+        """
+
+    def tendonLengthsJacobian(self, q, qdot) -> MX:
+        """
+        Get the tendon lengths jacobian
+        args: q, qdot
+        """
+
+
+    @cache_function
     def marker(self, marker_index: Int, reference_frame_idx: Int = None) -> Function:
         """
         Get the position of a marker

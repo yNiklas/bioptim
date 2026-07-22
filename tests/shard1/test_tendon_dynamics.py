@@ -48,7 +48,9 @@ def _integrate_RK4(times, start_states, controls, dyn_fun, time_between_nodes, n
     [
         (DM([0.0]), DM([0.0]), DM([0.0]), 0.0),
         (DM([0.0]), DM([0.0]), DM([400.0]), 0.0),
+        (DM([0.0]), DM([25.0]), DM([400.0]), 0.0),
         (DM([np.pi / 2]), DM([0.0]), DM([10.0]), 10.0 * np.cos(np.pi / 4) * 0.5),
+        (DM([np.pi / 2]), DM([0.0]), DM([0.0]), 0.0),
         (DM([0.2]), DM([0.0]), DM([10.0]), 0.499167),
     ],
 )

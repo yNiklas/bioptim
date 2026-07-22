@@ -922,6 +922,32 @@ class BiorbdModel:
         )
 
     @cache_function
+    def tendon_lengths_jacobian(self) -> Function:
+        """
+        Get the tendon lengths jacobian
+        args: q, qdot
+        """
+        q_biorbd = GeneralizedCoordinates(self.q)
+        qdot_biorbd = GeneralizedVelocity(self.qdot)
+        biorbd_return = self.model.tendonLengthsJacobian(q_biorbd, qdot_biorbd).to_mx()
+        casadi_fun = Function(
+            "tendon_lengths_jacobian",
+            [self.q, self.qdot, self.parameters],
+            [biorbd_return],
+            ["q", "qdot", "parameters"],
+            ["tendon_lengths_jacobian"],
+        )
+        return casadi_fun
+
+    def tendonLengthsJacobian(self, q, qdot) -> MX:
+        """
+        Get the tendon lengths jacobian
+        args: q, qdot
+        """
+        return self.tendon_lengths_jacobian()(q, qdot, self.parameters)
+
+
+    @cache_function
     def markers(self) -> list[MX]:
         biorbd_return = horzcat(*[m.to_mx() for m in self.model.markers(GeneralizedCoordinates(self.q))])
         casadi_fun = Function(
