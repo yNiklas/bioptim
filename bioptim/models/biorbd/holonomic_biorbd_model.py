@@ -9,6 +9,7 @@ from biorbd_casadi import (
 from casadi import MX, DM, vertcat, horzcat, Function, solve, rootfinder, inv, nlpsol, jacobian
 
 from .biorbd_model import BiorbdModel
+from ... import HolonomicConstraintsFcn
 from ...models.protocols.holonomic_constraints import HolonomicConstraintsList
 from ...optimization.parameters import ParameterList
 
@@ -808,6 +809,61 @@ class HolonomicBiorbdModel(BiorbdModel):
         )
 
         return casadi_fun
+
+    def contact_aware_partitioned_forward_dynamics(self) -> Function:
+        q = self.compute_q()(self.q_u, self.q_v_init)
+        qddot = self.contact_aware_partitioned_forward_dynamics_full()(q, self.qdot_u, self.tau)
+        return Function(
+            "contact_aware_partitioned_forward_dynamics",
+            [self.q_u, self.qdot_u, self.q_v_init, self.tau],
+            [qddot],
+            ["q_u", "qdot_u", "q_v_init", "tau"],
+            ["qddot_u"],
+        )
+
+    def contact_aware_partitioned_forward_dynamics_full(self) -> Function:
+        q = self.q
+        qdot = self.compute_qdot()(q, self.qdot_u)
+        tau = self.tau
+        u = self.nb_independent_joints
+        v = self.nb_dependent_joints
+        J_v = self.holonomic_constraints_jacobian(q)
+        J_vu = J_v[:, self._independent_joint_index]
+        J_vv = J_v[:, self.dependent_joint_index]
+        inv_J_vv = inv(J_vv)
+        b_v = J_v @ qdot
+        c_func, J_c_func, c_b_func = HolonomicConstraintsFcn.rigid_contacts(self.model)
+        J_c = J_c_func(q, self.parameters.cx)
+        b_c = c_b_func()(q, qdot, self.parameters.cx)
+        M = self.mass_matrix()(q, self.parameters.cx)
+        h = self.non_linear_effects()(q, qdot, self.parameters.cx)
+
+        T = vertcat(
+            DM.eye(u),
+            -inv_J_vv @ J_vu
+        )
+        d_v = vertcat(
+            DM.zeros(u,1),
+            -inv_J_vv @ b_v
+        )
+
+        inv_tmt = inv(T.T @ M @ T)
+
+        delassus = J_c @ T @ inv_tmt @ T.T @ J_c.T
+        r = -b_c - J_c @ d_v - J_c @ T @ inv_tmt @ T.T @ (tau - h - M @ d_v)
+        lambda_c = solve(delassus, r, "symbolicqr")
+
+        qddot_u = inv_tmt @ T.T @ (tau - h - M @ d_v + J_c.T @ lambda_c)
+        qddot = T @ qddot_u + d_v
+
+        return Function(
+            "contact_aware_partitioned_forward_dynamics",
+            [self.q, self.qdot_u, self.tau],
+            [qddot],
+            ["q", "qdot_u", "tau"],
+            ["qddot"],
+        )
+
 
     def coupling_matrix(self, q: MX) -> MX:
         """

@@ -5,6 +5,7 @@ from .external_forces import (
     ExternalForceSetTimeSeries,
     ExternalForceSetVariables,
 )
+from ...dynamics.state_space_dynamics.tendon_dynamics_holonomic import HolonomicTendonDynamics
 from ...optimization.parameters import ParameterList
 from .biorbd_model import BiorbdModel
 from .multi_biorbd_model import MultiBiorbdModel
@@ -424,5 +425,30 @@ class TendonBiorbdModel(BiorbdModel, TendonDynamics):
 
     def serialize(self) -> tuple[Callable, dict]:
         return TendonBiorbdModel, dict(bio_model=self.path)
+
+
+class HolonomicTendonBiorbdModel(HolonomicBiorbdModel, HolonomicTendonDynamics):
+    def __init__(
+            self,
+            bio_model: Str | biorbd.Model,
+            parameters: ParameterList = None,
+            holonomic_constraints: HolonomicConstraintsList | None = None,
+            dependent_joint_index: list[int] | tuple[int, ...] = None,
+            independent_joint_index: list[int] | tuple[int, ...] = None,
+            torque_driven_dofs: list[int] | tuple[int, ...] = None,
+            **kwargs
+    ):
+        HolonomicBiorbdModel.__init__(self, bio_model, parameters, **kwargs)
+        if holonomic_constraints is not None:
+            self.set_holonomic_configuration(holonomic_constraints, dependent_joint_index, independent_joint_index)
+        HolonomicTendonDynamics.__init__(self)
+        if torque_driven_dofs is not None and len(torque_driven_dofs) > 0:
+            dof_names = biorbd.VecBiorbdString()
+            for dof_name in torque_driven_dofs:
+                dof_names.push_back(biorbd.String(dof_name))
+            self.model.setNonTendonTauIndices(dof_names)
+
+    def serialize(self) -> tuple[Callable, dict]:
+        return HolonomicTendonBiorbdModel, dict(bio_model=self.path)
 
 # TODO: add variational

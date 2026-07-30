@@ -121,3 +121,24 @@ def test_function_cached():
     marker2 = bio_model.center_of_mass()(bio_model.q, bio_model.parameters)
     assert marker_id2 == id(bio_model._cached_functions[("marker", (), frozenset({("index", 1)}))])
     assert len(bio_model._cached_functions.keys()) == 3
+
+
+def test_tendon_lengths_jacobian():
+    bioptim_folder = TestUtils.bioptim_folder()
+    model_path = "/examples/models/tendon_finger.bioMod"
+    bio_model = BiorbdModel(bioptim_folder + model_path)
+
+    # Test the cached function
+    tendon_jac_fun = bio_model.tendon_lengths_jacobian()
+    assert len(bio_model._cached_functions.keys()) == 1
+
+    # Call the cached function with symbolic values
+    J_mx = tendon_jac_fun(bio_model.q, bio_model.qdot, bio_model.parameters)
+    assert J_mx.shape == (bio_model.nb_tendons, bio_model.nb_q)
+
+    # Test the wrapper tendonLengthsJacobian
+    q_val = np.zeros(bio_model.nb_q)
+    qdot_val = np.zeros(bio_model.nb_qdot)
+    J_val = bio_model.tendonLengthsJacobian(q_val, qdot_val)
+    assert J_val.shape == (bio_model.nb_tendons, bio_model.nb_q)
+
