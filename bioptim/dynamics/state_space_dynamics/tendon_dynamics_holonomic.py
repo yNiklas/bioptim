@@ -8,6 +8,7 @@ from ..dynamics_functions import DynamicsFunctions
 from ..ode_solvers import OdeSolver
 from .abstract_dynamics import StateDynamicsWithContacts
 from bioptim.misc.parameters_types import CXOptional
+from ...misc.enums import ContactType
 
 
 class HolonomicTendonDynamics(StateDynamicsWithContacts):
@@ -31,7 +32,6 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
         return [
             ConfigureVariables.configure_qv,
             ConfigureVariables.configure_qdotv,
-            ConfigureVariables.configure_lagrange_multipliers_function
         ]
 
     def get_basic_variables(
@@ -47,7 +47,7 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
         qdot_u = DynamicsFunctions.get(nlp.states["qdot_u"], states)
         tendons_pull_forces = DynamicsFunctions.get(nlp.controls["tendons"], controls)
         non_tendon_tau = DynamicsFunctions.get(nlp.controls["non_tendon_tau"], controls)
-        q_v_init = DM.zeros(nlp.model.nb_dependent_joints)
+        q_v_init = getattr(nlp.model, "q_v_init_guess", DM.zeros(nlp.model.nb_dependent_joints, 1))
 
         q = nlp.model.compute_q()(q_u, q_v_init)
         qdot = nlp.model.compute_qdot()(q, qdot_u)
@@ -75,10 +75,14 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
         q_u, qdot_u, q, qdot, tau, external_forces = self.get_basic_variables(
             nlp, states, controls, parameters, algebraic_states, numerical_timeseries
         )
-        q_v_init = DM.zeros(nlp.model.nb_dependent_joints)
+        q_v_init = getattr(nlp.model, "q_v_init_guess", DM.zeros(nlp.model.nb_dependent_joints, 1))
 
-        qddot = nlp.model.contact_aware_partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)
-        dxdt = vertcat(qdot, qddot)
+        contact_types = getattr(nlp.model, "contact_types", []) or []
+        if ContactType.RIGID_EXPLICIT in contact_types:
+            qddot_u = nlp.model.contact_aware_partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)
+        else:
+            qddot_u = nlp.model.partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)
+        dxdt = vertcat(qdot_u, qddot_u)
 
         defects = None
         if isinstance(nlp.dynamics_type.ode_solver, OdeSolver.COLLOCATION):
