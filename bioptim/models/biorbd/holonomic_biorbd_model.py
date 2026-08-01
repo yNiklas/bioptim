@@ -809,6 +809,7 @@ class HolonomicBiorbdModel(BiorbdModel):
 
         return casadi_fun
 
+    @cache_function
     def contact_aware_partitioned_forward_dynamics(self) -> Function:
         q = self.compute_q()(self.q_u, self.q_v_init)
         qddot_u = self.contact_aware_partitioned_forward_dynamics_full()(q, self.qdot_u, self.tau)
@@ -820,6 +821,7 @@ class HolonomicBiorbdModel(BiorbdModel):
             ["qddot_u"],
         )
 
+    @cache_function
     def contact_aware_partitioned_forward_dynamics_full(self) -> Function:
         q = self.q
         qdot = self.compute_qdot()(q, self.qdot_u)
@@ -829,9 +831,8 @@ class HolonomicBiorbdModel(BiorbdModel):
         J_v = self.holonomic_constraints_jacobian(q)
         J_vu = J_v[:, self._independent_joint_index]
         J_vv = J_v[:, self._dependent_joint_index]
-        inv_J_vv = inv(J_vv)
-        b_v = self.holonomic_constraints_bias(q, qdot, self.parameters)
-        c_func, J_c_func, c_b_func = HolonomicConstraintsFcn.rigid_contacts(self)
+        b_v = self.holonomic_constraints_bias(q, qdot)
+        _, J_c_func, c_b_func = HolonomicConstraintsFcn.rigid_contacts(self)
         J_c = J_c_func(q, self.parameters)
         b_c = c_b_func(q, qdot, self.parameters)
         M = self.mass_matrix()(q, self.parameters)
@@ -839,15 +840,15 @@ class HolonomicBiorbdModel(BiorbdModel):
 
         T = MX.zeros(u + v, u)
         T[self._independent_joint_index, :] = MX.eye(u)
-        T[self._dependent_joint_index, :] = -inv_J_vv @ J_vu
+        T[self._dependent_joint_index, :] = -solve(J_vv, J_vu)
         d_v = MX.zeros(u+v, 1)
-        d_v[self._dependent_joint_index, :] = -inv_J_vv @ b_v
+        d_v[self._dependent_joint_index, :] = -solve(J_vv, b_v)
 
         inv_tmt = inv(T.T @ M @ T)
 
         delassus = J_c @ T @ inv_tmt @ T.T @ J_c.T
         r = -b_c - J_c @ d_v - J_c @ T @ inv_tmt @ T.T @ (tau - h - M @ d_v)
-        lambda_c = solve(delassus, r, "symbolicqr")
+        lambda_c = solve(delassus, r)
 
         qddot_u = inv_tmt @ T.T @ (tau - h - M @ d_v + J_c.T @ lambda_c)
 
