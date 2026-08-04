@@ -3,6 +3,7 @@ from typing import Any
 
 from casadi import vertcat, DM, Function
 from matplotlib import pyplot as plt
+from matplotlib.widgets import CheckButtons, Slider
 import numpy as np
 from scipy import interpolate as sci_interp
 
@@ -103,8 +104,9 @@ class Solution:
         Actually performing the phase merging
     _complete_control(self)
         Controls don't necessarily have dimensions that matches the states. This method aligns them
-    graphs(self, automatically_organize: bool, show_bounds: bool,
-           show_now: bool, shooting_type: Shooting)
+        graphs(self, automatically_organize: bool, show_bounds: bool,
+            show_now: bool, shooting_type: Shooting, integrator: SolutionIntegrator,
+            save_name: str, show_gcom_plot: bool, show_interactive_stability_plot: bool)
         Show the graphs of the simulation
     animate(self, n_frames: int = 0, show_now: bool = True, **kwargs: Any) -> None | list
         Animate the simulation
@@ -1226,6 +1228,8 @@ class Solution:
         shooting_type: Shooting = Shooting.MULTIPLE,
         integrator: SolutionIntegrator = SolutionIntegrator.OCP,
         save_name: StrOptional = None,
+        show_gcom_plot: Bool = False,
+        show_interactive_stability_plot: Bool = False,
     ) -> list[plt.figure]:
         """
         Show the graphs of the simulation
@@ -1244,11 +1248,19 @@ class Solution:
             Use the scipy solve_ivp integrator for RungeKutta 45 instead of currently defined integrator
         save_name: str
             If a name is provided, the figures will be saved with this name
+        show_gcom_plot: bool
+            If a ground-projected center of mass plot should be added as a separate figure
+        show_interactive_stability_plot: bool
+            If an interactive stability plot with a node slider should be added as a separate figure
         """
 
         plot_ocp = self.ocp.prepare_plots(automatically_organize, show_bounds, shooting_type, integrator)
         self.ocp.plot_ipopt_outputs = False  # This plot is not possible on solutions (only in live plots)
         plot_ocp.update_data(*plot_ocp.parse_data(**{"x": self.vector}))
+        if show_gcom_plot:
+            self._plot_ground_projected_com()
+        if show_interactive_stability_plot:
+            self._plot_interactive_stability()
         if save_name:
             if save_name.endswith(".png"):
                 save_name = save_name[:-4]
@@ -1261,6 +1273,535 @@ class Solution:
         # Returning the figures for the tests
         fig_list = [plt.figure(i_fig + 1) for i_fig in range(len(plt.get_figlabels()))]
         return fig_list
+
+    def _ground_projected_com(self) -> list[tuple[np.ndarray, np.ndarray, str]]:
+        params = self.parameters
+        if isinstance(params, dict):
+            if params:
+                params = np.concatenate([np.asarray(value, dtype=float).reshape(-1, 1) for value in params.values()])
+            else:
+                params = np.array([])
+        else:
+            params = np.asarray(params, dtype=float)
+
+        states = self.decision_states(scaled=False, to_merge=SolutionMerge.NODES)
+        if not isinstance(states, list):
+            states = [states]
+
+        com_data: list[tuple[np.ndarray, np.ndarray, str]] = []
+        for phase_idx, nlp in enumerate(self.ocp.nlp):
+            phase_states = states[phase_idx]
+
+            if "q" in phase_states:
+                q = np.asarray(phase_states["q"], dtype=float)
+            elif "q_u" in phase_states and hasattr(nlp.model, "compute_q_from_u_iterative"):
+                q_v_init = getattr(nlp.model, "q_v_init_guess", None)
+                if q_v_init is None:
+                    q_v_init = np.zeros((getattr(nlp.model, "nb_dependent_joints", 0), 1))
+                q = np.asarray(
+                    nlp.model.compute_q_from_u_iterative(
+                        np.asarray(phase_states["q_u"], dtype=float),
+                        np.asarray(q_v_init, dtype=float),
+                    ),
+                    dtype=float,
+                )
+            else:
+                raise RuntimeError(
+                    "Unable to build the ground-projected CoM plot because the solution does not expose q or q_u."
+                )
+
+            if q.ndim == 1:
+                q = q[:, np.newaxis]
+
+            com_fun = nlp.model.center_of_mass()
+            com_xy = np.zeros((q.shape[1], 2))
+            for node_idx in range(q.shape[1]):
+                com = np.asarray(com_fun(q[:, node_idx][:, np.newaxis], params), dtype=float).squeeze()
+                com_xy[node_idx, :] = com[:2]
+
+            com_data.append((com_xy[:, 0], com_xy[:, 1], f"phase {phase_idx + 1}"))
+
+        return com_data
+
+    def _plot_ground_projected_com(self) -> None:
+        com_data = self._ground_projected_com()
+        fig = plt.figure("ground_projected_com")
+        ax = fig.gca()
+        for x, y, label in com_data:
+            ax.plot(x, y, label=label if len(com_data) > 1 else None)
+
+        x_values = np.concatenate([x for x, _, _ in com_data])
+        y_values = np.concatenate([y for _, y, _ in com_data])
+        x_min, x_max = float(np.min(x_values)), float(np.max(x_values))
+        y_min, y_max = float(np.min(y_values)), float(np.max(y_values))
+        x_span = x_max - x_min
+        y_span = y_max - y_min
+        target_span = max(x_span, y_span)
+        min_span = max(target_span * 0.5, 1e-6)
+
+        def _expand_range(min_value: float, max_value: float, required_span: float) -> tuple[float, float]:
+            span = max_value - min_value
+            if span >= required_span:
+                return min_value, max_value
+            padding = (required_span - span) / 2
+            return min_value - padding, max_value + padding
+
+        x_min, x_max = _expand_range(x_min, x_max, min_span)
+        y_min, y_max = _expand_range(y_min, y_max, min_span)
+
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
+        ax.set_title("Ground-projected center of mass")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_aspect("equal", adjustable="box")
+        ax.grid(True)
+        if len(com_data) > 1:
+            ax.legend()
+
+    def _plot_interactive_stability(self) -> None:
+        frames = self._interactive_stability_frames()
+        if not frames:
+            raise RuntimeError("Unable to build the interactive stability plot because no nodes were found.")
+
+        fig, ax = plt.subplots(num="interactive_stability_plot")
+        fig.subplots_adjust(bottom=0.24, right=0.82)
+
+        support_line, = ax.plot(
+            [], [], "-o", color="tab:blue", lw=1.8, ms=4, label="selected support polygon", zorder=6
+        )
+        com_point = ax.scatter([], [], s=55, color="tab:blue", label="CoM", zorder=7)
+        zmp_point = ax.scatter([], [], s=75, color="red", label="ZMP", zorder=8)
+        history_support_lines = [
+            ax.plot([], [], color="0.7", lw=1.0, alpha=0.7, zorder=2)[0] for _ in frames
+        ]
+        history_zmp_points = ax.scatter([], [], s=12, color="red", alpha=0.55, label="_nolegend_", zorder=3)
+        info_text = ax.text(0.02, 0.98, "", transform=ax.transAxes, va="top", ha="left")
+        all_state = {"enabled": False}
+
+        def _set_scatter_offsets(scatter, x: float | None, y: float | None) -> None:
+            if x is None or y is None:
+                scatter.set_offsets(np.empty((0, 2)))
+            else:
+                scatter.set_offsets(np.array([[x, y]], dtype=float))
+
+        def _update(frame_index: int) -> None:
+            frame = frames[int(frame_index)]
+            polygon_center = frame["support_center"] if all_state["enabled"] else np.zeros(2)
+            polygon = frame["support_polygon"] - polygon_center if frame["support_polygon"].size else frame["support_polygon"]
+            if polygon.size == 0:
+                support_line.set_data([], [])
+            else:
+                closed_polygon = np.vstack([polygon, polygon[0]]) if len(polygon) > 1 else polygon
+                support_line.set_data(closed_polygon[:, 0], closed_polygon[:, 1])
+
+            _set_scatter_offsets(com_point, frame["com"][0] - polygon_center[0], frame["com"][1] - polygon_center[1])
+            if frame["zmp"] is None:
+                _set_scatter_offsets(zmp_point, None, None)
+            else:
+                _set_scatter_offsets(
+                    zmp_point,
+                    frame["zmp"][0] - polygon_center[0],
+                    frame["zmp"][1] - polygon_center[1],
+                )
+
+            if all_state["enabled"]:
+                for i_frame, history_line in enumerate(history_support_lines):
+                    history_frame = frames[i_frame]
+                    history_polygon = history_frame["support_polygon"]
+                    history_center = history_frame["support_center"]
+                    if history_polygon.size == 0:
+                        history_line.set_data([], [])
+                        history_line.set_visible(False)
+                        continue
+                    centered_history_polygon = history_polygon - history_center
+                    closed_history_polygon = (
+                        np.vstack([centered_history_polygon, centered_history_polygon[0]])
+                        if len(centered_history_polygon) > 1
+                        else centered_history_polygon
+                    )
+                    history_line.set_data(closed_history_polygon[:, 0], closed_history_polygon[:, 1])
+                    history_line.set_visible(True)
+
+                history_zmp_points.set_offsets(
+                    np.array(
+                        [
+                            history_frame["zmp"] - history_frame["support_center"]
+                            for history_frame in frames
+                            if history_frame["zmp"] is not None
+                        ],
+                        dtype=float,
+                    )
+                    if any(history_frame["zmp"] is not None for history_frame in frames)
+                    else np.empty((0, 2))
+                )
+                history_zmp_points.set_visible(True)
+                support_line.set_color("tab:blue")
+                support_line.set_linewidth(1.8)
+                com_point.set_color("tab:blue")
+                zmp_point.set_color("red")
+            else:
+                for history_line in history_support_lines:
+                    history_line.set_visible(False)
+                history_zmp_points.set_offsets(np.empty((0, 2)))
+                history_zmp_points.set_visible(False)
+
+            info_text.set_text(frame["label"])
+            ax.set_title("Interactive stability plot" + (" - All" if all_state["enabled"] else ""))
+            fig.canvas.draw_idle()
+
+        global_points: list[np.ndarray] = []
+        for frame in frames:
+            if frame["support_polygon"].size:
+                global_points.append(frame["support_polygon"])
+            global_points.append(np.asarray(frame["com"], dtype=float)[np.newaxis, :])
+            if frame["zmp"] is not None:
+                global_points.append(np.asarray(frame["zmp"], dtype=float)[np.newaxis, :])
+
+        points = np.concatenate(global_points, axis=0)
+        x_min, x_max = float(np.min(points[:, 0])), float(np.max(points[:, 0]))
+        y_min, y_max = float(np.min(points[:, 1])), float(np.max(points[:, 1]))
+        x_min, x_max, y_min, y_max = self._balanced_xy_limits(x_min, x_max, y_min, y_max)
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.grid(True)
+
+        ax_check = fig.add_axes([0.85, 0.62, 0.12, 0.1])
+        check = CheckButtons(ax_check, ["All"], [False])
+
+        def _toggle_all(_label: str) -> None:
+            all_state["enabled"] = not all_state["enabled"]
+            _update(int(slider.val) if len(frames) > 1 else 0)
+
+        check.on_clicked(_toggle_all)
+        fig._bioptim_checkbuttons = check  # Keep the widget alive for the lifetime of the figure
+
+        if len(frames) > 1:
+            ax_slider = fig.add_axes([0.15, 0.08, 0.7, 0.04])
+            slider = Slider(ax_slider, "node", 0, len(frames) - 1, valinit=0, valstep=1)
+            slider.on_changed(_update)
+            fig._bioptim_slider = slider  # Keep the widget alive for the lifetime of the figure
+        else:
+            slider = None
+
+        _update(0)
+
+    def _interactive_stability_frames(self) -> list[dict[str, Any]]:
+        params = self.parameters
+        if isinstance(params, dict):
+            if params:
+                params = np.concatenate([np.asarray(value, dtype=float).reshape(-1, 1) for value in params.values()])
+            else:
+                params = np.array([])
+        else:
+            params = np.asarray(params, dtype=float)
+
+        states = self.decision_states(scaled=False, to_merge=SolutionMerge.NODES)
+        controls = self.decision_controls(scaled=False, to_merge=SolutionMerge.NODES)
+        algebraic_states = self.decision_algebraic_states(scaled=False, to_merge=SolutionMerge.NODES)
+        times = self.stepwise_time(to_merge=SolutionMerge.NODES, time_alignment=TimeAlignment.STATES)
+
+        if not isinstance(states, list):
+            states = [states]
+        if not isinstance(controls, list):
+            controls = [controls]
+        if not isinstance(algebraic_states, list):
+            algebraic_states = [algebraic_states]
+        if not isinstance(times, list):
+            times = [times]
+
+        frames: list[dict[str, Any]] = []
+        for phase_idx, nlp in enumerate(self.ocp.nlp):
+            phase_states = states[phase_idx]
+            phase_controls = controls[phase_idx]
+            phase_algebraic_states = algebraic_states[phase_idx]
+            phase_times = np.asarray(times[phase_idx], dtype=float).reshape(-1)
+
+            q, qdot = self._phase_q_and_qdot_from_states(phase_states, nlp)
+            com_fun = nlp.model.center_of_mass()
+            n_contacts = getattr(nlp.model, "nb_rigid_contacts", 0)
+
+            for node_idx in range(q.shape[1]):
+                q_node = q[:, node_idx][:, np.newaxis]
+                com_xy = np.asarray(com_fun(q_node, params), dtype=float).squeeze()[:2]
+
+                contact_positions = np.zeros((n_contacts, 3))
+                for i_contact in range(n_contacts):
+                    contact_position = np.asarray(nlp.model.rigid_contact_position(i_contact)(q_node, params), dtype=float).squeeze()
+                    contact_positions[i_contact, :] = contact_position[:3]
+
+                contact_forces = self._contact_forces_at_node(
+                    nlp=nlp,
+                    phase_states=phase_states,
+                    phase_controls=phase_controls,
+                    phase_algebraic_states=phase_algebraic_states,
+                    params=params,
+                    q=q,
+                    qdot=qdot,
+                    phase_times=phase_times,
+                    node_idx=node_idx,
+                    n_contacts=n_contacts,
+                )
+                support_points = contact_positions[:, :2]
+                zmp = None
+                if contact_forces is not None:
+                    active_contacts = np.linalg.norm(contact_forces, axis=1) > 1e-8
+                    if np.any(active_contacts):
+                        support_points = support_points[active_contacts]
+                        zmp = self._compute_zmp(contact_positions[active_contacts], contact_forces[active_contacts])
+
+                frames.append(
+                    {
+                        "label": f"phase {phase_idx + 1}, node {node_idx}",
+                        "com": com_xy,
+                        "support_polygon": self._convex_hull_2d(support_points),
+                        "support_center": self._polygon_center(support_points),
+                        "zmp": zmp,
+                    }
+                )
+
+        return frames
+
+    @staticmethod
+    def _phase_q_and_qdot_from_states(phase_states: AnyDict, nlp: Any) -> tuple[np.ndarray, np.ndarray]:
+        if "q" in phase_states:
+            q = np.asarray(phase_states["q"], dtype=float)
+        elif "q_u" in phase_states and hasattr(nlp.model, "compute_q_from_u_iterative"):
+            q_v_init = getattr(nlp.model, "q_v_init_guess", None)
+            if q_v_init is None:
+                q_v_init = np.zeros((getattr(nlp.model, "nb_dependent_joints", 0), 1))
+            q = np.asarray(
+                nlp.model.compute_q_from_u_iterative(
+                    np.asarray(phase_states["q_u"], dtype=float),
+                    np.asarray(q_v_init, dtype=float),
+                ),
+                dtype=float,
+            )
+        else:
+            raise RuntimeError("Unable to build the stability plot because the solution does not expose q or q_u.")
+
+        q = q if q.ndim > 1 else q[:, np.newaxis]
+
+        if "qdot" in phase_states:
+            qdot = np.asarray(phase_states["qdot"], dtype=float)
+        elif "qdot_u" in phase_states and hasattr(nlp.model, "compute_qdot"):
+            qdot_u = np.asarray(phase_states["qdot_u"], dtype=float)
+            qdot = np.asarray(nlp.model.compute_qdot(q, qdot_u), dtype=float)
+        elif "qdot_u" in phase_states:
+            qdot = np.asarray(phase_states["qdot_u"], dtype=float)
+        else:
+            raise RuntimeError("Unable to build the stability plot because the solution does not expose qdot or qdot_u.")
+
+        return q, qdot if qdot.ndim > 1 else qdot[:, np.newaxis]
+
+    @staticmethod
+    def _contact_forces_at_node(
+        nlp: Any,
+        phase_states: AnyDict,
+        phase_controls: AnyDict,
+        phase_algebraic_states: AnyDict,
+        params: np.ndarray,
+        q: np.ndarray,
+        qdot: np.ndarray,
+        phase_times: np.ndarray,
+        node_idx: int,
+        n_contacts: int,
+    ) -> np.ndarray | None:
+        if n_contacts == 0:
+            return None
+
+        contact_axes_per_point: list[list[int]] = []
+        for i_contact in range(n_contacts):
+            try:
+                axes = list(nlp.model.rigid_contact_axes_index(i_contact))
+            except Exception:
+                axes = [2]
+            contact_axes_per_point.append(axes if axes else [2])
+
+        if hasattr(nlp, "rigid_contact_forces_func") and nlp.rigid_contact_forces_func is not None:
+            control_idx = 0
+            if phase_controls:
+                first_control_key = next(iter(phase_controls))
+                n_control_nodes = phase_controls[first_control_key].shape[1]
+                if n_control_nodes > 0:
+                    interval_size = max(1, (q.shape[1] - 1) // n_control_nodes)
+                    control_idx = min(node_idx // interval_size, n_control_nodes - 1)
+
+            x_node = Solution._stack_node_vector(phase_states, node_idx, nlp.states.keys())
+            u_node = Solution._stack_node_vector(phase_controls, control_idx, nlp.controls.keys())
+            a_node = Solution._stack_node_vector(phase_algebraic_states, node_idx, nlp.algebraic_states.keys())
+
+            if phase_times.size == 0:
+                t_span = np.array([0.0, 0.0])
+            else:
+                t0 = phase_times[min(node_idx, phase_times.size - 1)]
+                t1 = phase_times[min(node_idx + 1, phase_times.size - 1)]
+                t_span = np.array([t0, t1], dtype=float)
+
+            try:
+                force = nlp.rigid_contact_forces_func(t_span, x_node, u_node, params, a_node, np.array([]))
+                force = np.asarray(force, dtype=float).reshape(-1)
+                mapped = Solution._map_contact_forces_to_xyz(force, n_contacts, contact_axes_per_point)
+                if mapped is not None:
+                    return mapped
+            except Exception:
+                pass
+
+        for key in ("contact_forces", "rigid_contact_forces"):
+            for phase_data, node_idx_data in (
+                (phase_states, node_idx),
+                (phase_controls, control_idx if "control_idx" in locals() else node_idx),
+                (phase_algebraic_states, node_idx),
+            ):
+                if key in phase_data:
+                    force_data = np.asarray(phase_data[key], dtype=float)
+                    if force_data.ndim == 1:
+                        node_forces = force_data
+                    else:
+                        if node_idx_data >= force_data.shape[1]:
+                            continue
+                        node_forces = force_data[:, node_idx_data]
+
+                    node_forces = np.asarray(node_forces, dtype=float).reshape(-1)
+                    mapped = Solution._map_contact_forces_to_xyz(node_forces, n_contacts, contact_axes_per_point)
+                    if mapped is not None:
+                        return mapped
+
+        return None
+
+    @staticmethod
+    def _map_contact_forces_to_xyz(
+        force_vector: np.ndarray, n_contacts: int, contact_axes_per_point: list[list[int]]
+    ) -> np.ndarray | None:
+        force_vector = np.asarray(force_vector, dtype=float).reshape(-1)
+        if force_vector.size == 0:
+            return None
+
+        total_contact_axes = sum(len(axes) for axes in contact_axes_per_point)
+
+        # Most general case: the vector is packed per contact using available contact axes.
+        if force_vector.size == total_contact_axes:
+            contact_forces = np.zeros((n_contacts, 3))
+            idx = 0
+            for i_contact, axes in enumerate(contact_axes_per_point):
+                for axis in axes:
+                    if axis in (0, 1, 2):
+                        contact_forces[i_contact, axis] = force_vector[idx]
+                    idx += 1
+            return contact_forces
+
+        # Common case for single-axis contacts: one force scalar per contact.
+        if force_vector.size == n_contacts:
+            contact_forces = np.zeros((n_contacts, 3))
+            for i_contact, axes in enumerate(contact_axes_per_point):
+                normal_axis = axes[-1] if axes else 2
+                if normal_axis not in (0, 1, 2):
+                    normal_axis = 2
+                contact_forces[i_contact, normal_axis] = force_vector[i_contact]
+            return contact_forces
+
+        # Fallback for already-expanded 3D forces. Try both common flattening conventions.
+        if force_vector.size == 3 * n_contacts:
+            by_contact = np.reshape(force_vector, (3, n_contacts), order="F").T
+            by_axis_block = np.reshape(force_vector, (3, n_contacts), order="C").T
+
+            def off_axis_score(candidate: np.ndarray) -> float:
+                score = 0.0
+                for i_contact, axes in enumerate(contact_axes_per_point):
+                    inactive_axes = [i for i in (0, 1, 2) if i not in axes]
+                    if inactive_axes:
+                        score += float(np.sum(np.abs(candidate[i_contact, inactive_axes])))
+                return score
+
+            return by_contact if off_axis_score(by_contact) <= off_axis_score(by_axis_block) else by_axis_block
+
+        return None
+
+    @staticmethod
+    def _stack_node_vector(data: AnyDict, node_idx: int, keys) -> np.ndarray:
+        if not data or not keys:
+            return np.array([])
+
+        values = []
+        for key in keys:
+            if key not in data:
+                continue
+            key_values = np.asarray(data[key], dtype=float)
+            if key_values.ndim == 1:
+                values.append(key_values.reshape(-1, 1))
+            else:
+                if node_idx >= key_values.shape[1]:
+                    values.append(key_values[:, -1].reshape(-1, 1))
+                else:
+                    values.append(key_values[:, node_idx].reshape(-1, 1))
+
+        return np.concatenate(values, axis=0) if values else np.array([])
+
+    @staticmethod
+    def _compute_zmp(contact_positions: np.ndarray, contact_forces: np.ndarray, tol: float = 1e-8) -> np.ndarray | None:
+        net_vertical_force = float(np.sum(contact_forces[:, 2]))
+        if abs(net_vertical_force) < tol:
+            return None
+
+        net_moment = np.sum(np.cross(contact_positions, contact_forces), axis=0)
+        return np.array([-net_moment[1] / net_vertical_force, net_moment[0] / net_vertical_force])
+
+    @staticmethod
+    def _convex_hull_2d(points: np.ndarray) -> np.ndarray:
+        points = np.asarray(points, dtype=float)
+        if points.size == 0:
+            return np.zeros((0, 2))
+
+        points = np.unique(points.reshape(-1, 2), axis=0)
+        if len(points) <= 2:
+            return points
+
+        points = points[np.lexsort((points[:, 1], points[:, 0]))]
+
+        def _cross(origin: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
+            return float((a[0] - origin[0]) * (b[1] - origin[1]) - (a[1] - origin[1]) * (b[0] - origin[0]))
+
+        lower: list[np.ndarray] = []
+        for point in points:
+            while len(lower) >= 2 and _cross(lower[-2], lower[-1], point) <= 0:
+                lower.pop()
+            lower.append(point)
+
+        upper: list[np.ndarray] = []
+        for point in reversed(points):
+            while len(upper) >= 2 and _cross(upper[-2], upper[-1], point) <= 0:
+                upper.pop()
+            upper.append(point)
+
+        return np.asarray(lower[:-1] + upper[:-1], dtype=float)
+
+    @staticmethod
+    def _balanced_xy_limits(x_min: float, x_max: float, y_min: float, y_max: float) -> tuple[float, float, float, float]:
+        x_span = x_max - x_min
+        y_span = y_max - y_min
+        target_span = max(x_span, y_span)
+        minimum_span = max(target_span * 0.5, 1e-6)
+
+        def _expand_range(min_value: float, max_value: float, required_span: float) -> tuple[float, float]:
+            span = max_value - min_value
+            if span >= required_span:
+                return min_value, max_value
+            padding = (required_span - span) / 2
+            return min_value - padding, max_value + padding
+
+        x_min, x_max = _expand_range(x_min, x_max, minimum_span)
+        y_min, y_max = _expand_range(y_min, y_max, minimum_span)
+        return x_min, x_max, y_min, y_max
+
+    @staticmethod
+    def _polygon_center(points: np.ndarray) -> np.ndarray:
+        points = np.asarray(points, dtype=float)
+        if points.size == 0:
+            return np.zeros(2)
+        return np.mean(points[:, :2], axis=0)
 
     def animate(
         self,

@@ -2,6 +2,7 @@ import pytest
 import platform
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 from bioptim import InterpolationType, PhaseDynamics, Solver, ControlType, OdeSolver, TorqueBiorbdModel
 from ..utils import TestUtils
@@ -117,6 +118,27 @@ def test__getting_started__custom_constraints__linear():
     solver.set_maximum_iterations(0)
     sol = ocp.solve(solver)
     return sol.graphs(show_now=False, show_bounds=True, automatically_organize=False)[0]
+
+
+def test_plot_ground_projected_com():
+    from bioptim.examples.getting_started import basic_tendon_ocp as ocp_module
+
+    bioptim_folder = TestUtils.bioptim_folder()
+
+    ocp = ocp_module.prepare_ocp(biorbd_model_path=bioptim_folder + "/examples/models/tendon_manipulator.bioMod")
+    sol = ocp.solve(Solver.IPOPT())
+
+    plt.close("all")
+    baseline_figures = sol.graphs(show_now=False, automatically_organize=False)
+    plt.close("all")
+    gcom_figures = sol.graphs(show_now=False, automatically_organize=False, show_gcom_plot=True)
+
+    assert len(gcom_figures) == len(baseline_figures) + 1
+    assert any(
+        axis.get_title() == "Ground-projected center of mass"
+        for figure in gcom_figures
+        for axis in figure.axes
+    )
 
 
 @pytest.mark.mpl_image_compare(savefig_kwargs={"dpi": 100})

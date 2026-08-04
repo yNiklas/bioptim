@@ -253,7 +253,9 @@ class PhaseTransitionFunctions(PenaltyFunctionAbstract):
             -------
             The difference between the last and first node
             """
-
+            if transition.custom_function is not None:
+                MultinodePenaltyFunctions.Functions._prepare_controller_cx(transition, controllers)
+                return transition.custom_function(controllers, **transition.extra_parameters)
             return MultinodePenaltyFunctions.Functions.states_equality(transition, controllers, "all")
 
         @staticmethod
