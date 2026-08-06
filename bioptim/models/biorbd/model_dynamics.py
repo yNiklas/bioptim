@@ -441,8 +441,9 @@ class HolonomicTendonBiorbdModel(HolonomicBiorbdModel, HolonomicTendonDynamics):
         HolonomicBiorbdModel.__init__(self, bio_model, parameters, **kwargs)
         if holonomic_constraints is not None:
             self.set_holonomic_configuration(holonomic_constraints, dependent_joint_index, independent_joint_index)
-        HolonomicTendonDynamics.__init__(self)
-        if torque_driven_dofs is not None and len(torque_driven_dofs) > 0:
+        has_non_tendon_tau = torque_driven_dofs is not None and len(torque_driven_dofs) > 0
+        HolonomicTendonDynamics.__init__(self, has_non_tendon_tau=has_non_tendon_tau)
+        if has_non_tendon_tau:
             dof_names = biorbd.VecBiorbdString()
             for dof_name in torque_driven_dofs:
                 dof_names.push_back(biorbd.String(dof_name))

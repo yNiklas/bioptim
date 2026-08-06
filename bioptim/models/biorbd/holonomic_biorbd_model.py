@@ -812,13 +812,13 @@ class HolonomicBiorbdModel(BiorbdModel):
     @cache_function
     def contact_aware_partitioned_forward_dynamics(self) -> Function:
         q = self.compute_q()(self.q_u, self.q_v_init)
-        qddot_u = self.contact_aware_partitioned_forward_dynamics_full()(q, self.qdot_u, self.tau)
+        qddot_u, lambda_c = self.contact_aware_partitioned_forward_dynamics_full()(q, self.qdot_u, self.tau)
         return Function(
             "contact_aware_partitioned_forward_dynamics",
             [self.q_u, self.qdot_u, self.q_v_init, self.tau],
-            [qddot_u],
+            [qddot_u, lambda_c],
             ["q_u", "qdot_u", "q_v_init", "tau"],
-            ["qddot_u"],
+            ["qddot_u", "lambda_c"],
         )
 
     @cache_function
@@ -840,24 +840,29 @@ class HolonomicBiorbdModel(BiorbdModel):
 
         T = MX.zeros(u + v, u)
         T[self._independent_joint_index, :] = MX.eye(u)
-        T[self._dependent_joint_index, :] = -solve(J_vv, J_vu)
+        T[self._dependent_joint_index, :] = -solve(J_vv, J_vu, "symbolicqr")
         d_v = MX.zeros(u+v, 1)
-        d_v[self._dependent_joint_index, :] = -solve(J_vv, b_v)
+        d_v[self._dependent_joint_index, :] = -solve(J_vv, b_v, "symbolicqr")
 
-        inv_tmt = inv(T.T @ M @ T)
+        # Solve against T'MT instead of forming its inverse. inv() builds a LinsolQr node,
+        # which has no eval_sx, so any Function containing it cannot be expand()-ed.
+        tmt = T.T @ M @ T
+        free_tau = tau - h - M @ d_v
+        contact_to_qddot_u = solve(tmt, T.T @ J_c.T, "symbolicqr")
+        free_qddot_u = solve(tmt, T.T @ free_tau, "symbolicqr")
 
-        delassus = J_c @ T @ inv_tmt @ T.T @ J_c.T
-        r = -b_c - J_c @ d_v - J_c @ T @ inv_tmt @ T.T @ (tau - h - M @ d_v)
-        lambda_c = solve(delassus, r)
+        delassus = J_c @ T @ contact_to_qddot_u
+        r = -b_c - J_c @ d_v - J_c @ T @ free_qddot_u
+        lambda_c = solve(delassus, r, "symbolicqr")
 
-        qddot_u = inv_tmt @ T.T @ (tau - h - M @ d_v + J_c.T @ lambda_c)
+        qddot_u = free_qddot_u + contact_to_qddot_u @ lambda_c
 
         return Function(
             "contact_aware_partitioned_forward_dynamics_full",
             [self.q, self.qdot_u, self.tau],
-            [qddot_u],
+            [qddot_u, lambda_c],
             ["q", "qdot_u", "tau"],
-            ["qddot_u"],
+            ["qddot_u", "lambda_c"],
         )
 
 

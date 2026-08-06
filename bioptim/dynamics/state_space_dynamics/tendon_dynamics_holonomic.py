@@ -12,8 +12,9 @@ from ...misc.enums import ContactType
 
 
 class HolonomicTendonDynamics(StateDynamicsWithContacts):
-    def __init__(self):
+    def __init__(self, has_non_tendon_tau: bool = False):
         super().__init__()
+        self.has_non_tendon_tau = has_non_tendon_tau
 
     @property
     def state_configuration_functions(self) -> List[States | Callable]:
@@ -21,7 +22,10 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
 
     @property
     def control_configuration_functions(self) -> List[Controls | Callable]:
-        return [Controls.TENDONS, Controls.NON_TENDON_TAU]
+        if self.has_non_tendon_tau:
+            return [Controls.TENDONS, Controls.NON_TENDON_TAU]
+        else:
+            return [Controls.TENDONS]
 
     @property
     def algebraic_configuration_functions(self) -> List[AlgebraicStates | Callable]:
@@ -79,7 +83,7 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
 
         contact_types = getattr(nlp.model, "contact_types", []) or []
         if ContactType.RIGID_EXPLICIT in contact_types:
-            qddot_u = nlp.model.contact_aware_partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)
+            qddot_u = nlp.model.contact_aware_partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)[0]
         else:
             qddot_u = nlp.model.partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)
         dxdt = vertcat(qdot_u, qddot_u)
@@ -105,4 +109,5 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
         q_u, qdot_u, q, qdot, tau, external_forces = self.get_basic_variables(
             nlp, states, controls, parameters, algebraic_states, numerical_timeseries
         )
-        return nlp.model.rigid_contact_forces()(q, qdot, tau, external_forces, nlp.parameters.cx)
+        q_v_init = getattr(nlp.model, "q_v_init_guess", DM.zeros(nlp.model.nb_dependent_joints, 1))
+        return nlp.model.contact_aware_partitioned_forward_dynamics()(q_u, qdot_u, q_v_init, tau)[1]
