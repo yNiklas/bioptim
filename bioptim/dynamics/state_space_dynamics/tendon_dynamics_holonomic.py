@@ -8,6 +8,7 @@ from ..dynamics_functions import DynamicsFunctions
 from ..ode_solvers import OdeSolver
 from .abstract_dynamics import StateDynamicsWithContacts
 from bioptim.misc.parameters_types import CXOptional
+from ... import DefectType
 from ...misc.enums import ContactType
 
 
@@ -90,9 +91,12 @@ class HolonomicTendonDynamics(StateDynamicsWithContacts):
 
         defects = None
         if isinstance(nlp.dynamics_type.ode_solver, OdeSolver.COLLOCATION):
-            slope_q_u = DynamicsFunctions.get(nlp.states_dot["q_u"], nlp.states_dot.scaled.cx)
-            slope_qdot_u = DynamicsFunctions.get(nlp.states_dot["qdot_u"], nlp.states_dot.scaled.cx)
-            defects = vertcat(slope_q_u, slope_qdot_u) - dxdt
+            if nlp.dynamics_type.ode_solver.defects_type == DefectType.QDDOT_EQUALS_FORWARD_DYNAMICS:
+                slope_q_u = DynamicsFunctions.get(nlp.states_dot["q_u"], nlp.states_dot.scaled.cx)
+                slope_qdot_u = DynamicsFunctions.get(nlp.states_dot["qdot_u"], nlp.states_dot.scaled.cx)
+                defects = vertcat(slope_q_u, slope_qdot_u) - dxdt
+            else:
+                raise NotImplementedError(f"The defect type {nlp.dynamics_type.ode_solver.defects_type} is not implemented yet for holonomic tendon driven dynamics.")
 
         return DynamicsEvaluation(dxdt=dxdt, defects=defects)
 

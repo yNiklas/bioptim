@@ -1,0 +1,477 @@
+///
+/// Similar to tuned_three_finger_crawl.bioMod, but with variable DIPs
+///
+
+version 4
+gravity 0 0 -9.81
+
+segment ground
+endsegment
+
+segment Root
+    rt 0 0 0 xyz 0 0.061 0.02661
+    translations xyz
+    rotations xyz
+    ranges
+        -1 1
+        -1 1
+        -1 1
+        -pi pi
+        -pi pi
+        -pi pi
+endsegment
+
+segment finger_base
+    parent Root
+    rt 0 0 0 xyz 0 0 0
+    mass 0.482
+    com 0 0 0
+    inertia
+        0.00088  0.0000 0.0000
+        0.0000  0.00059    0.0000
+        0.0000  0.0000 0.0007
+    mesh -0.0435 -0.061 -0.02661
+    mesh  0.0435 -0.061 -0.02661
+    mesh  0.0435  0.061 -0.02661
+    mesh -0.0435  0.061 -0.02661
+    mesh -0.0435 -0.061 -0.02661
+    mesh -0.0435 -0.061  0.02661
+    mesh  0.0435 -0.061  0.02661
+    mesh  0.0435  0.061  0.02661
+    mesh -0.0435  0.061  0.02661
+    mesh -0.0435 -0.061  0.02661
+    mesh -0.0435 -0.061 -0.02661
+    mesh -0.0435 -0.061  0.02661
+    mesh  0.0435 -0.061 -0.02661
+    mesh  0.0435 -0.061  0.02661
+    mesh  0.0435  0.061 -0.02661
+    mesh  0.0435  0.061  0.02661
+    mesh -0.0435  0.061 -0.02661
+    mesh -0.0435  0.061  0.02661
+endsegment
+
+contact base_contact_right
+    parent finger_base
+    position 0 0.061 -0.02661
+    axis z
+endcontact
+marker base_contact_right_marker
+    parent finger_base
+    position 0 0.061 -0.02661
+endmarker
+
+
+// THUMB
+segment thumb_proxy
+    parent finger_base
+    rt 0 0 pi xyz 0.04 0.04 -0.02
+    rotations y
+    ranges
+        -1.4 -0.18
+    mass
+        0.0002
+    inertia
+          3.3333e-09                0                0
+                   0       8.3333e-09                0
+                   0                0       8.3333e-09
+    com
+                   0               0              0
+endsegment
+
+segment thumb_proximal
+    parent thumb_proxy
+    //rt pi/2 0.75 0 xyz -0.01 0 0
+    rt -pi/2 -pi/4 2.2 xyz -0.02 0 0
+    mass 0.01
+    inertia
+       0.0000012  0.0000  0.0000
+       0.0000 0.0000006  0.0000
+       0.0000 0.0000 0.0000012
+    com  0.0000 0.0000 0.023
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.046
+    mesh -0.01  0.01 0.046
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.046
+    mesh -0.01 -0.01 0.046
+    mesh -0.01 -0.01 0
+endsegment
+
+segment thumb_middle
+    parent thumb_proximal
+    rt 0 0 0 xyz 0 0 0.046
+    rotations x
+    ranges
+        0 1.449
+    mass 0.01
+    inertia
+        0.0000012  0.0000   0.0000
+        0.0000  0.0000006  0.0000
+        0.0000  0.0000 0.0000012
+    com  0.0000 0.0000 0.023
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.046
+    mesh -0.01  0.01 0.046
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.046
+    mesh -0.01 -0.01 0.046
+    mesh -0.01 -0.01 0
+endsegment
+
+segment thumb_distal
+    parent thumb_middle
+    rt 0 0 0 xyz 0 0 0.046
+    mass 0.01
+    rotations x
+    ranges
+        0 1.396
+    inertia
+        0.0000012  0.0000   0.0000
+        0.0000  0.0000006  0.0000
+        0.0000  0.0000 0.0000012
+    com  0.0000 0.0000 0.0175
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.035
+    mesh -0.01  0.01 0.035
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.035
+    mesh -0.01 -0.01 0.035
+    mesh -0.01 -0.01 0
+endsegment
+
+marker thumb_endeffector
+    parent thumb_distal
+    position 0 0 0.035
+endmarker
+contact thumb_contact
+    parent thumb_distal
+    position 0 0 0.035
+    axis z
+endcontact
+
+tendon thumb_t
+    origin thumb_proximal
+    insertion thumb_distal
+    originPosition 0 -0.01 0.03
+    insertionPosition 0 -0.011 0.012
+endtendon
+tendonRoutingPoint thumb_trp1
+    tendon thumb_t
+    parent thumb_middle
+    position 0 0.0 0.012
+    frictionLoss 0.0
+endtendonRoutingPoint
+tendonRoutingPoint thumb_trp2
+    tendon thumb_t
+    parent thumb_middle
+    position 0 0.0 0.028
+    frictionLoss 0.0
+endtendonRoutingPoint
+
+passivetorque thumb_middle
+    type linear
+    dof RotX
+    slope -0.0135
+    T0 -0.00608
+endpassivetorque
+
+passivetorque thumb_distal
+    type linear
+    dof RotX
+    slope -0.01888
+    T0 -0.00848565
+endpassivetorque
+
+
+
+// MIDDLE FINGER
+segment middle_proximal
+    parent finger_base
+    rt pi/2 0 0 xyz 0 -0.061 0
+    rotations x
+    ranges
+        0 1.449
+    mass 0.01
+    inertia
+       0.0000012  0.0000  0.0000
+       0.0000 0.0000006  0.0000
+        0.0000 0.0000 0.0000012
+    com  0.0000 0.0000 0.023
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.046
+    mesh -0.01  0.01 0.046
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.046
+    mesh -0.01 -0.01 0.046
+    mesh -0.01 -0.01 0
+endsegment
+
+segment middle_middle
+    parent middle_proximal
+    rt 0 0 0 xyz 0 0 0.046
+    rotations x
+    ranges
+        0 1.396
+    mass 0.01
+    inertia
+        0.0000012  0.0000   0.0000
+        0.0000  0.0000006  0.0000
+        0.0000  0.0000 0.0000012
+    com  0.0000 0.0000 0.023
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.046
+    mesh -0.01  0.01 0.046
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.046
+    mesh -0.01 -0.01 0.046
+    mesh -0.01 -0.01 0
+endsegment
+
+segment middle_distal
+    parent middle_middle
+    rt 0 0 0 xyz 0 0 0.046
+    mass 0.01
+    rotations x
+    ranges
+        0 1.396
+    inertia
+        0.0000012  0.0000   0.0000
+        0.0000  0.0000006  0.0000
+        0.0000  0.0000 0.0000012
+    com  0.0000 0.0000 0.0175
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.035
+    mesh -0.01  0.01 0.035
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.035
+    mesh -0.01 -0.01 0.035
+    mesh -0.01 -0.01 0
+endsegment
+
+marker middle_endeffector
+    parent middle_distal
+    position 0 0 0.035
+endmarker
+contact middle_contact
+    parent middle_distal
+    position 0 0 0.035
+    axis xyz
+endcontact
+
+tendon middle_t
+    origin finger_base
+    insertion middle_middle
+    originPosition 0 -0.045 -0.014
+    insertionPosition 0 -0.011 0.012
+endtendon
+tendonRoutingPoint middle_trp1
+    tendon middle_t
+    parent middle_proximal
+    position 0 0.0 0.012
+    frictionLoss 0.0
+endtendonRoutingPoint
+tendonRoutingPoint middle_trp2
+    tendon middle_t
+    parent middle_proximal
+    position 0 0.0 0.028
+    frictionLoss 0.0
+endtendonRoutingPoint
+
+passivetorque middle_proximal
+    type linear
+    dof RotX
+    slope -0.139
+    T0 -0.00589
+endpassivetorque
+//ligament l_middle_proximal
+//    type linearspring
+//    origin finger_base
+//    insertion middle_proximal
+//    originPosition 0 -0.058 0.013
+//    insertionPosition 0 0.01 0.001
+//    stiffness 5000
+//    dampingfactor 1
+//    ligamentslacklength 0.05
+//    maxshorteningspeed 1
+//endligament
+//passivetorque middle_proximal
+//	type exponential
+//	dof RotX
+//	k1 -2
+//	k2 0
+//	b1 0.01
+//	b2 -0.65
+//	taueq -0.01976715
+//	wmax 15
+//	qmid 0
+//	deltap 0
+//	sv 1
+//	pbeta 0.4
+//endpassivetorque
+
+passivetorque middle_middle
+    type linear
+    dof RotX
+    slope -0.2
+    T0 -0.00848565
+endpassivetorque
+//ligament l_middle_middle
+//    type linearspring
+//    origin middle_proximal
+//    insertion middle_middle
+//    originPosition 0 0.005 0.044
+//    insertionPosition 0 0.002 0.001
+//    stiffness 5000000
+//    dampingfactor 0
+//    ligamentslacklength 0.05
+//    maxshorteningspeed 1000
+//endligament
+//passivetorque middle_middle
+//	type exponential
+//	dof RotX
+//	k1 -2
+//	k2 0
+//	b1 0.01
+//	b2 -0.2
+//	taueq -0.01976715
+//	wmax 15
+//	qmid 0
+//	deltap 0
+//	sv 1
+//	pbeta 0.4
+//endpassivetorque
+
+
+// LITTLE FINGER
+segment little_proximal
+    parent finger_base
+    rt pi/2 0 0 xyz -0.04 -0.061 0
+    rotations x
+    ranges
+        0 1.449
+    mass 0.01
+    inertia
+       0.0000012  0.0000  0.0000
+       0.0000 0.0000006  0.0000
+        0.0000 0.0000 0.0000012
+    com  0.0000 0.0000 0.023
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.046
+    mesh -0.01  0.01 0.046
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.046
+    mesh -0.01 -0.01 0.046
+    mesh -0.01 -0.01 0
+endsegment
+
+segment little_middle
+    parent little_proximal
+    rt 0 0 0 xyz 0 0 0.046
+    rotations x
+    ranges
+        0 1.396
+    mass 0.01
+    inertia
+        0.0000012  0.0000   0.0000
+        0.0000  0.0000006  0.0000
+        0.0000  0.0000 0.0000012
+    com  0.0000 0.0000 0.023
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.046
+    mesh -0.01  0.01 0.046
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.046
+    mesh -0.01 -0.01 0.046
+    mesh -0.01 -0.01 0
+endsegment
+
+segment little_distal
+    parent little_middle
+    rt 0 0 0 xyz 0 0 0.046
+    mass 0.01
+    rotations x
+    ranges
+        0 1.396
+    inertia
+        0.0000012  0.0000   0.0000
+        0.0000  0.0000006  0.0000
+        0.0000  0.0000 0.0000012
+    com  0.0000 0.0000 0.0175
+    mesh -0.01  0.01 0
+    mesh  0.01  0.01 0
+    mesh  0.01  0.01 0.035
+    mesh -0.01  0.01 0.035
+    mesh -0.01  0.01 0
+    mesh -0.01 -0.01 0
+    mesh  0.01 -0.01 0
+    mesh  0.01 -0.01 0.035
+    mesh -0.01 -0.01 0.035
+    mesh -0.01 -0.01 0
+endsegment
+
+marker little_endeffector
+    parent little_distal
+    position 0 0 0.035
+endmarker
+contact little_contact
+    parent little_distal
+    position 0 0 0.035
+    axis z
+endcontact
+
+tendon little_t
+    origin finger_base
+    insertion little_middle
+    originPosition -0.04 -0.045 -0.014
+    insertionPosition 0 -0.011 0.012
+endtendon
+tendonRoutingPoint little_trp1
+    tendon little_t
+    parent little_proximal
+    position 0 0.0 0.012
+    frictionLoss 0.0
+endtendonRoutingPoint
+tendonRoutingPoint little_trp2
+    tendon little_t
+    parent little_proximal
+    position 0 0.0 0.028
+    frictionLoss 0.0
+endtendonRoutingPoint
+
+passivetorque little_proximal
+    type linear
+    dof RotX
+    slope -0.0164
+    T0 -0.00736
+endpassivetorque
+
+passivetorque little_middle
+    type linear
+    dof RotX
+    slope -0.01888
+    T0 -0.00848565
+endpassivetorque
