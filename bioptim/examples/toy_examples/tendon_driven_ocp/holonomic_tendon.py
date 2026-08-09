@@ -20,20 +20,12 @@ def proportional_joint_constraint(pip_idx: int, dip_idx: int, coef: float):
         return phi, phi_jac, bias
     return make
 
-def track_base_marker_y(controller, marker_name: str, goal: float):
-    return track_marker(controller, marker_name, axis=Axis.Y, goal=goal)
-
-def track_marker(controller, marker_name: str, axis: int, goal: float = 0):
+def marker_position(controller, marker_name: str, axis: Axis):
     q_u = controller.states["q_u"].cx
     q_v_init = getattr(controller.model, "q_v_init_guess", DM.zeros(controller.model.nb_dependent_joints, 1))
     q = controller.model.compute_q()(q_u, q_v_init)
     marker_index = controller.model.marker_index(marker_name)
-    return controller.model.marker(marker_index)(q, controller.parameters.cx)[axis] - goal
-
-def bound_marker(controller, marker_name: str, axis: int):
-    # Return the raw (symbolic) marker coordinate; the bounds are enforced by
-    # the constraint's own min_bound/max_bound.
-    return track_marker(controller, marker_name, axis)
+    return controller.model.marker(marker_index)(q, controller.parameters.cx)[axis]
 
 def prepare_holonomic_tendon_crawl(
     bio_model_path: str,
@@ -68,7 +60,8 @@ def prepare_holonomic_tendon_crawl(
 
     objectives = ObjectiveList()
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001)
-    objectives.add(track_base_marker_y, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker", weight=5)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=0, quadratic=True, weight=5)
 
     constraints = ConstraintList()
     constraints.add(  # base_contact_right
@@ -185,11 +178,10 @@ def prepare_two_phase_holonomic_crawl(bio_model_path: str, no_contact_bio_model_
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="non_tendon_tau", weight=0.01, phase=0)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="non_tendon_tau", weight=0.01, phase=1)
-    objectives.add(track_base_marker_y, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker", weight=5,
-                   phase=0)
-    objectives.add(track_base_marker_y, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
-                   weight=5,
-                   phase=1)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=0, quadratic=True, weight=5, phase=0)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=0, quadratic=True, weight=5, phase=1)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", index=[5], weight=40, phase=0)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", index=[5], weight=40, phase=1)
 
@@ -259,21 +251,23 @@ def prepare_two_phase_holonomic_crawl(bio_model_path: str, no_contact_bio_model_
         contact_index=4,
         phase=1
     )
-    constraints.add( # Don't penetrate ground
-        bound_marker,
+    constraints.add(  # Don't penetrate ground (shooting nodes only, see note below)
+        marker_position,
         marker_name="middle_endeffector",
-        node=Node.ALL,
-        phase=1,
         axis=Axis.Z,
+        node=Node.ALL,
         min_bound=0,
         max_bound=np.inf,
-    )
-    constraints.add(  # Place middle finger to the ground for the contact establishment
-        track_marker,
-        marker_name="middle_endeffector",
-        node=Node.END,
         phase=1,
-        axis=Axis.Z
+    )
+    constraints.add(  # Place middle finger on the ground for the contact establishment
+        marker_position,
+        marker_name="middle_endeffector",
+        axis=Axis.Z,
+        node=Node.END,
+        min_bound=0,
+        max_bound=0,
+        phase=1,
     )
     constraints.add(
         ConstraintFcn.BOUND_STATE,
@@ -408,9 +402,12 @@ def prepare_three_phase_holonomic_crawl(bio_model_path: str,
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=2)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="non_tendon_tau", weight=0.01, phase=0)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="non_tendon_tau", weight=0.01, phase=1)
-    objectives.add(track_base_marker_y, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker", goal=0.04, weight=5, phase=0)
-    objectives.add(track_base_marker_y, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker", goal=0.04, weight=5, phase=1)
-    objectives.add(track_base_marker_y, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker", goal=-0.02, weight=5, phase=2)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=0.04, quadratic=True, weight=5, phase=0)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=0.04, quadratic=True, weight=5, phase=1)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=-0.02, quadratic=True, weight=5, phase=2)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", index=[5], weight=40, phase=0)
     # objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", index=[5], weight=40, phase=1)
 
@@ -471,21 +468,23 @@ def prepare_three_phase_holonomic_crawl(bio_model_path: str,
         contact_index=4,
         phase=1
     )
-    constraints.add( # Don't penetrate ground
-        bound_marker,
+    constraints.add(  # Don't penetrate ground (shooting nodes only, see note below)
+        marker_position,
         marker_name="middle_endeffector",
-        node=Node.ALL,
-        phase=1,
         axis=Axis.Z,
+        node=Node.ALL,
         min_bound=0,
         max_bound=np.inf,
-    )
-    constraints.add(  # Place middle finger to the ground for the contact establishment
-        track_marker,
-        marker_name="middle_endeffector",
-        node=Node.END,
         phase=1,
-        axis=Axis.Z
+    )
+    constraints.add(  # Place middle finger on the ground for the contact establishment
+        marker_position,
+        marker_name="middle_endeffector",
+        axis=Axis.Z,
+        node=Node.END,
+        min_bound=0,
+        max_bound=0,
+        phase=1,
     )
     constraints.add(
         ConstraintFcn.BOUND_STATE,
@@ -670,7 +669,7 @@ def three_phase_main():
     bio_model, ocp = prepare_three_phase_holonomic_crawl(
         model_path,
         model_path_no_contact,
-        n_threads=14,
+        n_threads=8,
     )
     #ocp.check_conditioning()
     # ocp.print(to_console=True, to_graph=False)
@@ -679,7 +678,7 @@ def three_phase_main():
     #solver.set_check_derivatives_for_naninf(True)
     #solver.set_option_unsafe("first-order", "derivative_test")
     #solver.set_option_unsafe("yes", "derivative_test_print_all")
-    solver.set_maximum_iterations(3000)
+    solver.set_maximum_iterations(4000)
     sol = ocp.solve(solver)
     sol.print_cost()
     states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
