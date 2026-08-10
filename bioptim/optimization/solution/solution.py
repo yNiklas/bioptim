@@ -1589,7 +1589,17 @@ class Solution:
             qdot = np.asarray(phase_states["qdot"], dtype=float)
         elif "qdot_u" in phase_states and hasattr(nlp.model, "compute_qdot"):
             qdot_u = np.asarray(phase_states["qdot_u"], dtype=float)
-            qdot = np.asarray(nlp.model.compute_qdot(q, qdot_u), dtype=float)
+            qdot_u = qdot_u if qdot_u.ndim > 1 else qdot_u[:, np.newaxis]
+            # compute_qdot() is a factory returning the casadi Function (q, qdot_u) -> qdot,
+            # which only accepts one node (column) at a time.
+            compute_qdot = nlp.model.compute_qdot()
+            qdot = np.concatenate(
+                [
+                    np.asarray(compute_qdot(q[:, node_idx], qdot_u[:, node_idx]), dtype=float)
+                    for node_idx in range(qdot_u.shape[1])
+                ],
+                axis=1,
+            )
         elif "qdot_u" in phase_states:
             qdot = np.asarray(phase_states["qdot_u"], dtype=float)
         else:
