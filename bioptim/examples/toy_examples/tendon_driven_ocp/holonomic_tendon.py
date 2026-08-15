@@ -39,6 +39,14 @@ def marker_position(controller, marker_name: str, axis: Axis):
     marker_index = controller.model.marker_index(marker_name)
     return controller.model.marker(marker_index)(q, controller.parameters.cx)[axis]
 
+def marker_velocity(controller, marker_name: str, axis: Axis):
+    q_u, qdot_u = controller.states["q_u"].cx, controller.states["qdot_u"].cx
+    q_v_init = getattr(controller.model, "q_v_init_guess", DM.zeros(controller.model.nb_dependent_joints, 1))
+    q = controller.model.compute_q()(q_u, q_v_init)
+    qdot = controller.model.compute_qdot()(q, qdot_u)
+    marker_index = controller.model.marker_index(marker_name)
+    return controller.model.marker_velocity(marker_index)(q, qdot, controller.parameters.cx)[axis]
+
 def prepare_holonomic_tendon_crawl(
     bio_model_path: str,
     use_contacts: bool = False,
@@ -682,6 +690,36 @@ def prepare_cyclic_holonomic_crawl(bio_model_path: str, no_contact_bio_model_pat
             contact_index=contact_index,
             phase=0
         )
+    for contact_marker in ("base_contact_right_marker", "thumb_endeffector", "little_endeffector"):
+        constraints.add(
+            marker_velocity,
+            min_bound=0,
+            max_bound=0,
+            node=Node.START,
+            marker_name=contact_marker,
+            axis=Axis.Z,
+            phase=0
+        )
+    for axis in [Axis.X, Axis.Y, Axis.Z]:
+        constraints.add(
+            marker_velocity,
+            marker_name="middle_endeffector",
+            axis=axis,
+            node=Node.START,
+            min_bound=0,
+            max_bound=0,
+            phase=0,
+        )
+    for axis in [Axis.X, Axis.Y]:
+        constraints.add(
+            marker_velocity,
+            marker_name="base_contact_right_marker",
+            axis=axis,
+            node=Node.END,
+            min_bound=0,
+            max_bound=0,
+            phase=0,
+        )
     for contact_index in [2,3,4]:
         constraints.add(
             ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
@@ -689,7 +727,7 @@ def prepare_cyclic_holonomic_crawl(bio_model_path: str, no_contact_bio_model_pat
             max_bound=np.inf,
             node=Node.ALL,
             contact_index=contact_index,
-            phase=0
+            phase=1
         )
     constraints.add(  # Don't penetrate ground
         marker_position,
@@ -747,8 +785,8 @@ def prepare_cyclic_holonomic_crawl(bio_model_path: str, no_contact_bio_model_pat
     x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=0)
     x_bounds.add("qdot_u", bio_model[1].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
     #x_bounds[0]["q_u"][2:, 0] = q0_u[2:]
-    #x_bounds[0]["qdot_u"][:, 0] = 0
-    #x_bounds[0]["qdot_u"][:6, -1] = 0
+    x_bounds[0]["qdot_u"][:6, 0] = 0
+    x_bounds[0]["qdot_u"][:6, -1] = 0
     #x_bounds[1]["qdot_u"][:6, -1] = 0
 
     x_init = InitialGuessList()
@@ -878,7 +916,7 @@ def cyclic_main():
     #solver.set_check_derivatives_for_naninf(True)
     #solver.set_option_unsafe("first-order", "derivative_test")
     #solver.set_option_unsafe("yes", "derivative_test_print_all")
-    solver.set_maximum_iterations(3000)
+    solver.set_maximum_iterations(8000)
     sol = ocp.solve(solver)
     sol.print_cost()
     states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
