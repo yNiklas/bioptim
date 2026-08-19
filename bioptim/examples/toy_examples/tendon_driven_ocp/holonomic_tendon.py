@@ -29,7 +29,7 @@ def velocity_based_forward_displacement_phase_transition(controllers: list[Penal
     start_states = states_mapping[0].to_first.map(controllers[1].states["all"].cx)
     end_y = end_states[1]
     start_y = start_states[1]
-    t = controllers[0].tf.cx
+    t = controllers[0].tf.cx + controllers[1].tf.cx
     return vertcat(start_states[2:] - end_states[2:], (end_y - start_y) / t - target_velocity)
 
 def proportional_joint_constraint(pip_idx: int, dip_idx: int, coef: float):
@@ -1033,6 +1033,160 @@ def prepare_velocity_based_holonomic_cyclic_crawl(bio_model_path: str, no_contac
         n_threads=n_threads
     )
 
+def prepare_ramp_up_to_cyclic(bio_model_path: str,
+                              no_contact_bio_model_path: str,
+                              n_threads: int = 2):
+    holonomic_constraints = HolonomicConstraintsList()
+    holonomic_constraints.add(
+        key="middle_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=10, dip_idx=11, coef=0.849),
+    )
+    holonomic_constraints.add(
+        key="little_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=13, dip_idx=14, coef=0.849),
+    )
+
+    bio_model = (
+        HolonomicTendonBiorbdModel(
+            no_contact_bio_model_path,
+            holonomic_constraints=holonomic_constraints,
+            independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13],
+            dependent_joint_index=[11, 14],
+            contact_types=[ContactType.RIGID_EXPLICIT],
+            torque_driven_dofs=["thumb_proxy_RotY"]
+        ),
+        HolonomicTendonBiorbdModel(
+            bio_model_path,
+            holonomic_constraints=holonomic_constraints,
+            independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13],
+            dependent_joint_index=[11, 14],
+            contact_types=[ContactType.RIGID_EXPLICIT],
+            torque_driven_dofs=["thumb_proxy_RotY"]
+        ),
+        HolonomicTendonBiorbdModel(
+            no_contact_bio_model_path,
+            holonomic_constraints=holonomic_constraints,
+            independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13],
+            dependent_joint_index=[11, 14],
+            contact_types=[ContactType.RIGID_EXPLICIT],
+            torque_driven_dofs=["thumb_proxy_RotY"]
+        )
+    )
+
+    state_mapping = BiMappingList()
+    state_mapping.add("q",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
+    state_mapping.add("qdot",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
+
+    objectives = ObjectiveList()
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=0)
+    objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=0)
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
+    objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=1)
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=2)
+    objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=2)
+
+    constraints = ConstraintList()
+    for contact_index in (2,3,4):
+        constraints.add( # Unilateral contacts
+            ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+            min_bound=0,
+            max_bound=np.inf,
+            node=Node.ALL,
+            contact_index=contact_index,
+            phase=0
+        )
+    for contact_index in (0,1,4,5):
+        constraints.add( # Unilateral contacts
+            ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+            min_bound=0,
+            max_bound=np.inf,
+            node=Node.ALL,
+            contact_index=contact_index,
+            phase=1
+        )
+    for phase in (0,2):
+        constraints.add(  # Don't penetrate ground
+            marker_position,
+            marker_name="middle_endeffector",
+            axis=Axis.Z,
+            node=Node.ALL,
+            min_bound=0,
+            max_bound=np.inf,
+            phase=phase,
+        )
+
+    q0 = [0] * 15
+    q0_u = q0[:11] + q0[12:14]
+    q0_v = [q0[11], q0[14]]
+    bio_model[0].q_v_init_guess = DM(q0_v)
+    n_non_tendon = len(bio_model[0].non_tendon_tau_indices)
+
+    x_bounds = BoundsList()
+    x_bounds.add("q_u", bio_model[0].bounds_from_ranges("q", mapping=state_mapping), phase=0)
+    x_bounds.add("q_u", bio_model[1].bounds_from_ranges("q", mapping=state_mapping), phase=1)
+    x_bounds.add("q_u", bio_model[2].bounds_from_ranges("q", mapping=state_mapping), phase=2)
+    x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=0)
+    x_bounds.add("qdot_u", bio_model[1].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
+    x_bounds.add("qdot_u", bio_model[2].bounds_from_ranges("qdot", mapping=state_mapping), phase=2)
+    x_bounds[0]["q_u"][2:, 0] = q0_u[2:] # keep x,y free
+    x_bounds[0]["qdot_u"][:, 0] = 0
+
+    q_f = [
+        0, 0.03, 0.02, -0.38, 0.01, -0.01,
+        -0.33, 1.12, 0.65,
+        0.73, 0.28, 0.23,
+        0.42, 0.76, 0.64
+    ]
+    q_f_u = q_f[:11] + q_f[12:14]
+    x_bounds[2]["qdot_u"][:, -1] = q_f_u
+
+    x_init = InitialGuessList()
+    x_init.add("q_u", q0_u, phase=0)
+    x_init.add("qdot_u", [0] * bio_model[0].nb_independent_joints, phase=0)
+
+    u_bounds = BoundsList()
+    u_bounds.add("tendons", min_bound=[0] * bio_model[0].nb_tendons, max_bound=[200] * bio_model[0].nb_tendons, phase=0)
+    u_bounds.add("tendons", min_bound=[0] * bio_model[1].nb_tendons, max_bound=[200] * bio_model[0].nb_tendons, phase=1)
+    u_bounds.add("tendons", min_bound=[0] * bio_model[2].nb_tendons, max_bound=[200] * bio_model[0].nb_tendons, phase=2)
+    u_bounds.add("non_tendon_tau", min_bound=[-10] * n_non_tendon, max_bound=[10] * n_non_tendon, phase=0)
+    u_bounds.add("non_tendon_tau", min_bound=[-10] * n_non_tendon, max_bound=[10] * n_non_tendon, phase=1)
+    u_bounds.add("non_tendon_tau", min_bound=[-10] * n_non_tendon, max_bound=[10] * n_non_tendon, phase=2)
+
+    u_init = InitialGuessList()
+    u_init.add("tendons", [5] * bio_model[0].nb_tendons, phase=0)
+    u_init.add("non_tendon_tau", [0] * n_non_tendon, phase=0)
+
+    phase_transitions = PhaseTransitionList()
+    phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=0)
+    phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=1)
+
+    dynamics = DynamicsOptionsList()
+    dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=0)
+    dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=1)
+    dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=2)
+
+    return bio_model, OptimalControlProgram(
+        bio_model,
+        n_shooting=[26, 26, 26],
+        phase_time=(0.5, 0.8, 0.5),
+        objective_functions=objectives,
+        constraints=constraints,
+        dynamics=dynamics,
+        x_bounds=x_bounds,
+        u_bounds=u_bounds,
+        x_init=x_init,
+        u_init=u_init,
+        phase_transitions=phase_transitions,
+        variable_mappings=state_mapping,
+        n_threads=n_threads
+    )
+
+
+
 def single_phase_main():
     model_path = ExampleUtils.folder + "/models/holonomic_three_finger_crawl.bioMod"
     bio_model, ocp = prepare_holonomic_tendon_crawl(
@@ -1147,7 +1301,7 @@ def velocity_based_cyclic_main():
     #solver.set_check_derivatives_for_naninf(True)
     #solver.set_option_unsafe("first-order", "derivative_test")
     #solver.set_option_unsafe("yes", "derivative_test_print_all")
-    solver.set_maximum_iterations(1000)
+    solver.set_maximum_iterations(2000)
     sol = ocp.solve(solver)
     sol.print_cost()
     states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
@@ -1157,10 +1311,35 @@ def velocity_based_cyclic_main():
     viz.exec()
     sol.graphs(automatically_organize=False)
 
+def ramp_up_main():
+    model_path = ExampleUtils.folder + "/models/holonomic_three_finger_crawl.bioMod"
+    model_path_no_contact = ExampleUtils.folder + "/models/holonomic_three_finger_crawl_no_contact.bioMod"
+    bio_model, ocp = prepare_ramp_up_to_cyclic(
+        model_path,
+        model_path_no_contact,
+        n_threads=8,
+    )
+    #ocp.check_conditioning()
+    # ocp.print(to_console=True, to_graph=False)
+    ocp.add_plot_penalty(CostType.CONSTRAINTS)
+    solver = Solver.IPOPT()
+    #solver.set_check_derivatives_for_naninf(True)
+    #solver.set_option_unsafe("first-order", "derivative_test")
+    #solver.set_option_unsafe("yes", "derivative_test_print_all")
+    solver.set_maximum_iterations(5000)
+    sol = ocp.solve(solver)
+    sol.print_cost()
+    states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
+    q = bio_model[0].compute_q_from_u_iterative(states["q_u"], q_v_init=np.array(bio_model[0].q_v_init_guess))
+    viz = bioviz.Viz(model_path)
+    viz.load_movement(q)
+    viz.exec()
+    sol.graphs(automatically_organize=False, show_gcom_plot=True, show_interactive_stability_plot=True)
 
 if __name__ == "__main__":
     #single_phase_main()
     #two_phase_main()
     #three_phase_main()
     #cyclic_main()
-    velocity_based_cyclic_main()
+    #velocity_based_cyclic_main()
+    ramp_up_main()
