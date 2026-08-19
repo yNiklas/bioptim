@@ -22,7 +22,7 @@ def displacement_aware_cyclic_phase_transition(controllers: list[PenaltyControll
     return vertcat(constraint_violation[2:], constraint_violation[stride_dof_index] + stride)
 
 def velocity_based_forward_displacement_phase_transition(controllers: list[PenaltyController, PenaltyController],
-                                                         target_velocity = 0.05,
+                                                         target_velocity = -0.05,
                                                          states_mapping: list[BiMapping] = None) -> MX:
     states_mapping = MultinodePenaltyFunctions.Functions._prepare_states_mapping(controllers, states_mapping)
     end_states = states_mapping[0].to_second.map(controllers[0].states["all"].cx)
