@@ -1,3 +1,5 @@
+import signal
+
 import bioviz
 import numpy as np
 from bioptim import ContactType, ObjectiveList, ObjectiveFcn, ConstraintList, \
@@ -7,7 +9,8 @@ from bioptim import ContactType, ObjectiveList, ObjectiveFcn, ConstraintList, \
     PhaseTransitionList, PhaseTransitionFcn, DynamicsOptionsList, PenaltyController, BiMapping, \
     MultinodeObjectiveList
 from casadi import MX, Function, jacobian, DM, vertcat
-from bioptim.examples.utils import ExampleUtils
+from bioptim.examples.utils import ExampleUtils, IterationsControllerCallback
+from bioptim.gui.online_callback_abstract import OnlineCallbackAbstract
 from bioptim.limits.multinode_penalty import MultinodePenaltyFunctions
 from bioptim.models.biorbd.model_dynamics import HolonomicTendonBiorbdModel
 
@@ -1099,6 +1102,33 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
             contact_index=contact_index,
             phase=0
         )
+        constraints.add(  # Unilateral contacts
+            ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+            min_bound=0,
+            max_bound=np.inf,
+            node=Node.ALL,
+            contact_index=contact_index,
+            phase=2
+        )
+    constraints.add( # Drive middle finger to the ground
+        marker_position,
+        node=Node.END,
+        marker_name="middle_endeffector",
+        axis=Axis.Z,
+        min_bound=0,
+        max_bound=0,
+        phase=0
+    )
+    for axis in [Axis.X, Axis.Y, Axis.Z]:
+        constraints.add( # Manual impact handling (by having none) since PhaseTransitionFcn.IMPACT is not usable because of holonomic constraints (no full "q")
+            marker_velocity,
+            marker_name="middle_endeffector",
+            axis=axis,
+            node=Node.START,
+            min_bound=0,
+            max_bound=0,
+            phase=0,
+        )
     for contact_index in (0,1,4,5):
         constraints.add( # Unilateral contacts
             ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
@@ -1142,7 +1172,8 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
         0.42, 0.76, 0.64
     ]
     q_f_u = q_f[:11] + q_f[12:14]
-    x_bounds[2]["qdot_u"][:, -1] = q_f_u
+    x_bounds[2]["q_u"][:, -1] = q_f_u
+    x_bounds[2]["qdot_u"][:, -1] = 0
 
     x_init = InitialGuessList()
     x_init.add("q_u", q0_u, phase=0)
@@ -1161,7 +1192,7 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
     u_init.add("non_tendon_tau", [0] * n_non_tendon, phase=0)
 
     phase_transitions = PhaseTransitionList()
-    phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=0)
+    phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=0) # IMPACT is not usable because of holonomic constraints (no full "q")
     phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=1)
 
     dynamics = DynamicsOptionsList()
@@ -1317,16 +1348,13 @@ def ramp_up_main():
     bio_model, ocp = prepare_ramp_up_to_cyclic(
         model_path,
         model_path_no_contact,
-        n_threads=8,
+        n_threads=4,
     )
-    #ocp.check_conditioning()
-    # ocp.print(to_console=True, to_graph=False)
     ocp.add_plot_penalty(CostType.CONSTRAINTS)
     solver = Solver.IPOPT()
-    #solver.set_check_derivatives_for_naninf(True)
-    #solver.set_option_unsafe("first-order", "derivative_test")
-    #solver.set_option_unsafe("yes", "derivative_test_print_all")
-    solver.set_maximum_iterations(5000)
+    solver.set_maximum_iterations(1_000_000)
+    ocp.set_ocp_solver(solver)
+    ocp.ocp_solver.options_common["iteration_callback"] = IterationsControllerCallback(ocp, budget=1000, default_extension=500)
     sol = ocp.solve(solver)
     sol.print_cost()
     states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
