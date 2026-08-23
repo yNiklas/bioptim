@@ -276,10 +276,10 @@ def prepare_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8):
 
     # Starting posture (fingers pre-flexed and in contact with the ground).
     q0 = [
-        0.0, 0.0, 0.0235, -0.41, 0.0, 0.0,
-        -0.43, 0.86, 1.01,
-        0.47, 0.91, 0.77259,
-        0.69, 0.44, 0.37356
+        0.0, 0.0, 0.01581, -0.30541,-0.03601,0,#-0.41, 0.0, 0.0,
+        -0.38,0,0,#-0.43, 0.86, 1.01,
+        0.19, 0.81, 0.81*0.849, #0.47, 0.91, 0.77259,
+        0, 1.369, 1.1852#0.69, 0.44, 0.37356
     ]
     q0_u = q0[:11] + q0[12:14]
     q0_v = [q0[11], q0[14]]
@@ -442,7 +442,7 @@ def main():
     sol.graphs()
 
 def holonomic_main():
-    model_path = str(Path(__file__).with_name("holonomic_soft_contact_three_finger.bioMod"))
+    model_path = str(Path(__file__).with_name("soft_contact_hand.bioMod"))
     bio_model, ocp = prepare_holonomic_soft_crawl_ocp(
         model_path,
         n_threads=8,

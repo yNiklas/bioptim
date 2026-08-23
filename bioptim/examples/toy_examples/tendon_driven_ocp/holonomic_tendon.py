@@ -881,7 +881,7 @@ def prepare_velocity_based_holonomic_cyclic_crawl(bio_model_path: str, no_contac
 
     objectives = ObjectiveList()
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=0)
-    objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=0)
+    objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, min_bound=0.25, weight=1, phase=0)
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
     objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=1)
     #objectives.add(ObjectiveFcn.Mayer.MINIMIZE_STATE, key="q_u", index=1, target=-0.05, weight=5, phase=0)
@@ -1085,11 +1085,11 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
                       to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
 
     objectives = ObjectiveList()
-    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=0)
+    #objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=0)
     objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=0)
-    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
+    #objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
     objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=1)
-    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=2)
+    #objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=2)
     objectives.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=1, phase=2)
 
     constraints = ConstraintList()
@@ -1124,7 +1124,7 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
             marker_velocity,
             marker_name="middle_endeffector",
             axis=axis,
-            node=Node.START,
+            node=Node.END,
             min_bound=0,
             max_bound=0,
             phase=0,
@@ -1149,7 +1149,18 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
             phase=phase,
         )
 
-    q0 = [0] * 15
+    #q0 = [
+    #    0, 0, 0, -0.41, 0, 0,
+    #    -0.47, 0, 0,
+    #    0, 0, 0,
+    #    1.45, 1.4, 1.1886
+    #]
+    q0 = [
+        0, 0.06, 0.02, -0.27, -0.09, 0,
+        -0.42, 0, 0,
+        0, 0, 0,
+        0, 1.4, 1.1886
+    ]
     q0_u = q0[:11] + q0[12:14]
     q0_v = [q0[11], q0[14]]
     bio_model[0].q_v_init_guess = DM(q0_v)
