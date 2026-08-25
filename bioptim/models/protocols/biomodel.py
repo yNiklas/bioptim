@@ -271,6 +271,13 @@ class BioModel(Protocol):
         """
 
     @cache_function
+    def tendon_lengths(self) -> Function:
+        """
+        Get the total length of each tendon (the sum of its section lengths)
+        args: q, qdot
+        """
+
+    @cache_function
     def tendon_lengths_jacobian(self) -> Function:
         """
         Get the tendon lengths jacobian

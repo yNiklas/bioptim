@@ -922,6 +922,32 @@ class BiorbdModel:
         )
 
     @cache_function
+    def tendon_lengths(self) -> Function:
+        """
+        Get the total tendon lengths
+        args: q, qdot
+        """
+        q_biorbd = GeneralizedCoordinates(self.q)
+        qdot_biorbd = GeneralizedVelocity(self.qdot)
+
+        updated_model = self.model.UpdateKinematicsCustom(q_biorbd)
+        lengths = []
+        for tendon_idx in range(self.nb_tendons):
+            tendon = self.model.tendon(tendon_idx)
+            tendon.updateKinematics(updated_model, q_biorbd, qdot_biorbd)
+            lengths.append(tendon.length().to_mx())
+        biorbd_return = vertcat(*lengths) if lengths else MX.zeros(0, 1)
+
+        casadi_fun = Function(
+            "tendon_lengths",
+            [self.q, self.qdot, self.parameters],
+            [biorbd_return],
+            ["q", "qdot", "parameters"],
+            ["tendon_lengths"],
+        )
+        return casadi_fun
+
+    @cache_function
     def tendon_lengths_jacobian(self) -> Function:
         """
         Get the tendon lengths jacobian
