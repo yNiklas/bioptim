@@ -275,12 +275,13 @@ def prepare_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8):
     )
 
     # Starting posture (fingers pre-flexed and in contact with the ground).
-    q0 = [
-        0.0, 0.0, 0.01581, -0.30541,-0.03601,0,#-0.41, 0.0, 0.0,
-        -0.38,0,0,#-0.43, 0.86, 1.01,
-        0.19, 0.81, 0.81*0.849, #0.47, 0.91, 0.77259,
-        0, 1.369, 1.1852#0.69, 0.44, 0.37356
-    ]
+    #q0 = [
+    #    0.0, 0.0, 0.01581, -0.30541,-0.03601,0,#-0.41, 0.0, 0.0,
+    #    -0.38,0,0,#-0.43, 0.86, 1.01,
+    #    0.19, 0.81, 0.81*0.849, #0.47, 0.91, 0.77259,
+    #    0, 1.369, 1.1852#0.69, 0.44, 0.37356
+    #]
+    q0 = [0.0] * 15
     q0_u = q0[:11] + q0[12:14]
     q0_v = [q0[11], q0[14]]
     bio_model.q_v_init_guess = DM(q0_v)
@@ -395,7 +396,7 @@ def prepare_two_phase_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8)
     x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
     x_bounds[0]["q_u"][:, 0] = q0_u
     x_bounds[0]["qdot_u"][:, 0] = 1e-10
-    #x_bounds[0]["qdot_u"][:, -1] = 0
+    x_bounds[1]["qdot_u"][:, -1] = 0
 
     x_init = InitialGuessList()
     x_init.add("q_u", q0_u)
@@ -442,7 +443,7 @@ def main():
     sol.graphs()
 
 def holonomic_main():
-    model_path = str(Path(__file__).with_name("soft_contact_hand.bioMod"))
+    model_path = str(Path(__file__).with_name("rest_pos_three_finger_soft_crawl.bioMod"))
     bio_model, ocp = prepare_holonomic_soft_crawl_ocp(
         model_path,
         n_threads=8,
@@ -483,5 +484,5 @@ def holonomic_two_phase_main():
 
 if __name__ == "__main__":
     #main()
-    holonomic_main()
-    #holonomic_two_phase_main()
+    #holonomic_main()
+    holonomic_two_phase_main()
