@@ -1115,7 +1115,26 @@ def prepare_inverse_velocity_based_holonomic_cyclic_crawl(
                 phase=phase
             )
     for name in ("base_contact_right_marker", "thumb_endeffector", "little_endeffector"):
-        constraints.add(marker_position, marker_name=name, axis=Axis.Z, node=Node.START, min_bound=0, max_bound=0, phase=1)
+        constraints.add(marker_position, marker_name=name, axis=Axis.Z, node=Node.START, min_bound=0, max_bound=0, phase=0)
+        constraints.add(
+            marker_velocity,
+            min_bound=0,
+            max_bound=0,
+            node=Node.START,
+            marker_name=name,
+            axis=Axis.Z,
+            phase=0
+        )
+    for phase in [0, 2]:
+        for contact_index in [2, 3, 4]:
+            constraints.add(
+                ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+                min_bound=0,
+                max_bound=np.inf,
+                node=Node.ALL,
+                contact_index=contact_index,
+                phase=phase
+            )
     for contact_index in [0, 1, 4, 5]:
         constraints.add(
             ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
@@ -1123,16 +1142,6 @@ def prepare_inverse_velocity_based_holonomic_cyclic_crawl(
             max_bound=np.inf,
             node=Node.ALL,
             contact_index=contact_index,
-            phase=1
-        )
-    for contact_marker in ("base_contact_right_marker", "thumb_endeffector", "little_endeffector"):
-        constraints.add(
-            marker_velocity,
-            min_bound=0,
-            max_bound=0,
-            node=Node.START,
-            marker_name=contact_marker,
-            axis=Axis.Z,
             phase=1
         )
     for axis in [Axis.X, Axis.Y, Axis.Z]:
@@ -1155,16 +1164,6 @@ def prepare_inverse_velocity_based_holonomic_cyclic_crawl(
             max_bound=0,
             phase=1,
         )
-    for phase in [0, 2]:
-        for contact_index in [2, 3, 4]:
-            constraints.add(
-                ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
-                min_bound=0,
-                max_bound=np.inf,
-                node=Node.ALL,
-                contact_index=contact_index,
-                phase=phase
-            )
     constraints.add(  # Don't penetrate ground
         marker_position,
         marker_name="middle_endeffector",
@@ -1185,7 +1184,7 @@ def prepare_inverse_velocity_based_holonomic_cyclic_crawl(
     )
 
     q0 = [
-        0.0, 0.0, 0.0271, -0.25, 0, 0,
+        0.0, 0.0, 0.01402, -0.24539, 0.0132, 0,
         -0.3, 0, 0,
         0, 0, 0,
         0, 1.4, 1.1886
@@ -1202,10 +1201,10 @@ def prepare_inverse_velocity_based_holonomic_cyclic_crawl(
     x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=0)
     x_bounds.add("qdot_u", bio_model[1].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
     x_bounds.add("qdot_u", bio_model[2].bounds_from_ranges("qdot", mapping=state_mapping), phase=2)
-    x_bounds[0]["q_u"][2:, 0] = q0_u[2:]
+    x_bounds[0]["q_u"][9, 0] = q0_u[9]
+    x_bounds[0]["q_u"][11, 0] = q0_u[11]
     x_bounds[1]["qdot_u"][:6, 0] = 0
     x_bounds[1]["qdot_u"][:6, -1] = 0
-    # x_bounds[1]["qdot_u"][:6, -1] = 0
 
     x_init = InitialGuessList()
     x_init.add("q_u", q0_u, phase=0)
@@ -1439,6 +1438,191 @@ def prepare_ramp_up_to_cyclic(bio_model_path: str,
         n_threads=n_threads
     )
 
+def prepare_single_phase_ramp_up(bio_model_path: str, n_threads=8):
+    ...
+
+def prepare_inchworm_ocp(
+        middle_model_path: str,
+        little_model_path: str,
+        n_threads=2
+):
+    holonomic_constraints = HolonomicConstraintsList()
+    holonomic_constraints.add(
+        key="middle_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=10, dip_idx=11, coef=0.849),
+    )
+    holonomic_constraints.add(
+        key="little_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=13, dip_idx=14, coef=0.849),
+    )
+
+    bio_model = (
+        HolonomicTendonBiorbdModel(
+            middle_model_path,
+            holonomic_constraints=holonomic_constraints,
+            independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13],
+            dependent_joint_index=[11, 14],
+            contact_types=[ContactType.RIGID_EXPLICIT],
+            torque_driven_dofs=["thumb_proxy_RotY"]
+        ),
+        HolonomicTendonBiorbdModel(
+            little_model_path,
+            holonomic_constraints=holonomic_constraints,
+            independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13],
+            dependent_joint_index=[11, 14],
+            contact_types=[ContactType.RIGID_EXPLICIT],
+            torque_driven_dofs=["thumb_proxy_RotY"]
+        )
+    )
+
+    state_mapping = BiMappingList()
+    state_mapping.add("q",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
+    state_mapping.add("qdot",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
+
+    objectives = ObjectiveList()
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=0)
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
+
+    constraints = ConstraintList()
+    for phase in range(2):
+        constraints.add(
+            ConstraintFcn.TIME_CONSTRAINT,
+            node=Node.END,
+            min_bound=0.5,
+            max_bound=2,
+            phase=phase
+        )
+    for name in ("base_contact_right_marker", "thumb_endeffector", "middle_endeffector"):
+        constraints.add(marker_position, marker_name=name, axis=Axis.Z, node=Node.START, min_bound=0, max_bound=0, phase=0)
+    for name in ("base_contact_right_marker", "thumb_endeffector", "little_endeffector"):
+        constraints.add(marker_position, marker_name=name, axis=Axis.Z, node=Node.START, min_bound=0, max_bound=0, phase=1)
+    for contact_index in [0,1,4]:
+        constraints.add(
+            ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+            min_bound=0,
+            max_bound=np.inf,
+            node=Node.ALL,
+            contact_index=contact_index,
+            phase=0
+        )
+        constraints.add(
+            ConstraintFcn.TRACK_EXPLICIT_RIGID_CONTACT_FORCES,
+            min_bound=0,
+            max_bound=np.inf,
+            node=Node.ALL,
+            contact_index=contact_index,
+            phase=1
+        )
+    for contact_marker in ("base_contact_right_marker", "thumb_endeffector"):
+        constraints.add(
+            marker_velocity,
+            min_bound=0,
+            max_bound=0,
+            node=Node.START,
+            marker_name=contact_marker,
+            axis=Axis.Z,
+            phase=0
+        )
+    for axis in [Axis.X, Axis.Y, Axis.Z]:
+        constraints.add(
+            marker_velocity,
+            marker_name="middle_endeffector",
+            axis=axis,
+            node=Node.START,
+            min_bound=0,
+            max_bound=0,
+            phase=0,
+        )
+    for axis in [Axis.X, Axis.Y, Axis.Z]:
+        constraints.add(
+            marker_velocity,
+            marker_name="little_endeffector",
+            axis=axis,
+            node=Node.START,
+            min_bound=0,
+            max_bound=0,
+            phase=1,
+        )
+    constraints.add(  # Don't penetrate ground
+        marker_position,
+        marker_name="middle_endeffector",
+        axis=Axis.Z,
+        node=Node.ALL,
+        min_bound=0,
+        max_bound=np.inf,
+        phase=1,
+    )
+    constraints.add(  # Don't penetrate ground
+        marker_position,
+        marker_name="little_endeffector",
+        axis=Axis.Z,
+        node=Node.ALL,
+        min_bound=0,
+        max_bound=np.inf,
+        phase=0,
+    )
+
+    q0 = [
+        0.0, 0.0, 0.0271, -0.41, 0.0, 0.0,
+        -0.43, 0.86, 1.01,
+        0.47, 0.91, 0.77259,
+        0.69, 0.44, 0.37356
+    ]
+    q0_u = q0[:11] + q0[12:14]
+    q0_v = [q0[11], q0[14]]
+    bio_model[0].q_v_init_guess = DM(q0_v)
+    n_non_tendon = len(bio_model[0].non_tendon_tau_indices)
+
+    x_bounds = BoundsList()
+    x_bounds.add("q_u", bio_model[0].bounds_from_ranges("q", mapping=state_mapping), phase=0)
+    x_bounds.add("q_u", bio_model[1].bounds_from_ranges("q", mapping=state_mapping), phase=1)
+    x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=0)
+    x_bounds.add("qdot_u", bio_model[1].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
+    x_bounds[0]["qdot_u"][:6, 0] = 0
+    x_bounds[0]["qdot_u"][:6, -1] = 0
+    #x_bounds[1]["qdot_u"][:6, -1] = 0
+
+    x_init = InitialGuessList()
+    x_init.add("q_u", q0_u, phase=0)
+    x_init.add("qdot_u", [0] * bio_model[0].nb_independent_joints, phase=0)
+
+    u_bounds = BoundsList()
+    u_bounds.add("tendons", min_bound=[0] * bio_model[0].nb_tendons, max_bound=[200] * bio_model[0].nb_tendons, phase=0)
+    u_bounds.add("tendons", min_bound=[0] * bio_model[1].nb_tendons, max_bound=[200] * bio_model[0].nb_tendons, phase=1)
+    u_bounds.add("non_tendon_tau", min_bound=[-10] * n_non_tendon, max_bound=[10] * n_non_tendon, phase=0)
+    u_bounds.add("non_tendon_tau", min_bound=[-10] * n_non_tendon, max_bound=[10] * n_non_tendon, phase=1)
+
+    u_init = InitialGuessList()
+    u_init.add("tendons", [5] * bio_model[0].nb_tendons, phase=0)
+    u_init.add("non_tendon_tau", [0] * n_non_tendon, phase=0)
+
+    phase_transitions = PhaseTransitionList()
+    phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=0)
+    phase_transitions.add(PhaseTransitionFcn.CYCLIC, custom_function=velocity_based_forward_displacement_phase_transition)
+
+    dynamics = DynamicsOptionsList()
+    dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=0)
+    dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=1)
+
+    return bio_model, OptimalControlProgram(
+        bio_model,
+        n_shooting=[26, 26],
+        phase_time=(1, 1),
+        objective_functions=objectives,
+        constraints=constraints,
+        dynamics=dynamics,
+        x_bounds=x_bounds,
+        u_bounds=u_bounds,
+        x_init=x_init,
+        u_init=u_init,
+        phase_transitions=phase_transitions,
+        variable_mappings=state_mapping,
+        n_threads=n_threads
+    )
 
 
 def single_phase_main():
@@ -1566,7 +1750,7 @@ def inverse_velocity_based_cyclic_main():
     bio_model, ocp = prepare_inverse_velocity_based_holonomic_cyclic_crawl(
         model_path,
         model_path_no_contact,
-        n_threads=14,
+        n_threads=4,
     )
     ocp.add_plot_penalty(CostType.CONSTRAINTS)
     solver = Solver.IPOPT()
@@ -1604,11 +1788,34 @@ def ramp_up_main():
     viz.exec()
     sol.graphs(automatically_organize=False, show_gcom_plot=True, show_interactive_stability_plot=True)
 
+def inchworm_main():
+    middle_model_path = "three_finger_inchworm_middle.bioMod"
+    little_model_path = "three_finger_inchworm_little.bioMod"
+    bio_model, ocp = prepare_inchworm_ocp(
+        middle_model_path,
+        little_model_path,
+        n_threads=8,
+    )
+    ocp.add_plot_penalty(CostType.CONSTRAINTS)
+    solver = Solver.IPOPT()
+    solver.set_maximum_iterations(2000)
+    ocp.set_ocp_solver(solver)
+    ocp.ocp_solver.options_common["iteration_callback"] = IterationsControllerCallback(ocp, budget=1000, default_extension=500)
+    sol = ocp.solve(solver)
+    sol.print_cost()
+    states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
+    q = bio_model[0].compute_q_from_u_iterative(states["q_u"], q_v_init=np.array(bio_model[0].q_v_init_guess))
+    viz = bioviz.Viz(middle_model_path)
+    viz.load_movement(q)
+    viz.exec()
+    sol.graphs(automatically_organize=False)
+
 if __name__ == "__main__":
     #single_phase_main()
     #two_phase_main()
     #three_phase_main()
     #cyclic_main()
     #velocity_based_cyclic_main()
-    inverse_velocity_based_cyclic_main()
+    #inverse_velocity_based_cyclic_main()
     #ramp_up_main()
+    inchworm_main()
