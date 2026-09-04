@@ -1,3 +1,5 @@
+from functools import partial
+
 import bioviz
 from casadi import DM
 
@@ -10,9 +12,10 @@ from bioptim import TendonBiorbdModel, OptimalControlProgram, ObjectiveFcn, Boun
     CostType, Axis, TorqueBiorbdModel, BiMappingList, Solution, \
     SolutionMerge, InitialGuessList, VariableScalingList, DynamicsOptions, OdeSolver, PhaseTransitionList, \
     PhaseTransitionFcn, DynamicsOptionsList
-from bioptim.examples.toy_examples.tendon_driven_ocp.holonomic_tendon import marker_position
+from bioptim.examples.toy_examples.tendon_driven_ocp.holonomic_tendon import marker_position, \
+    velocity_based_forward_displacement_phase_transition
 from bioptim.examples.toy_examples.torque_driven_ocp.holonomic import proportional_joint_constraint
-from bioptim.examples.utils import IterationsControllerCallback
+from bioptim.examples.utils import IterationsControllerCallback, ExampleUtils
 from bioptim.models.biorbd.model_dynamics import HolonomicTendonBiorbdModel
 
 
@@ -275,13 +278,18 @@ def prepare_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8):
     )
 
     # Starting posture (fingers pre-flexed and in contact with the ground).
+    q0 = [
+        0.0, 0.0, 0.0235, -0.41, 0.0, 0.0,
+        -0.43, 0.86, 1.01,
+        0.47, 0.91, 0.77259,
+        0.69, 0.44, 0.37356
+    ]
     #q0 = [
-    #    0.0, 0.0, 0.01581, -0.30541,-0.03601,0,#-0.41, 0.0, 0.0,
-    #    -0.38,0,0,#-0.43, 0.86, 1.01,
-    #    0.19, 0.81, 0.81*0.849, #0.47, 0.91, 0.77259,
-    #    0, 1.369, 1.1852#0.69, 0.44, 0.37356
+    #    0, 0, 0.014367, -0.274935, 0, 0,
+    #    -0.210919, 0, 1.188015,
+    #    0, 1.072009, 0.910136,
+    #    0, 1.369, 1.162281
     #]
-    q0 = [0.0] * 15
     q0_u = q0[:11] + q0[12:14]
     q0_v = [q0[11], q0[14]]
     bio_model.q_v_init_guess = DM(q0_v)
@@ -301,6 +309,10 @@ def prepare_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8):
     u_bounds.add("tendons", min_bound=[0] * bio_model.nb_tendons, max_bound=[200] * bio_model.nb_tendons)
     u_bounds.add("non_tendon_tau", min_bound=[-20], max_bound=[20])
 
+    u_init = InitialGuessList()
+    u_init.add("tendons", [2.2993, 18.9657, 1.7572])
+    u_init.add("non_tendon_tau", [-0.0024])
+
     return bio_model, OptimalControlProgram(
         bio_model,
         n_shooting=40,
@@ -311,6 +323,7 @@ def prepare_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8):
         x_bounds=x_bounds,
         u_bounds=u_bounds,
         x_init=x_init,
+        u_init=u_init,
         variable_mappings=state_mapping,
         n_threads=n_threads
     )
@@ -429,6 +442,94 @@ def prepare_two_phase_holonomic_soft_crawl_ocp(bio_model_path: str, n_threads=8)
         n_threads=n_threads
     )
 
+def prepare_cyclic_holonomic_soft_crawl_ocp(bio_model_path: str):
+    holonomic_constraints = HolonomicConstraintsList()
+    holonomic_constraints.add(
+        key="middle_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=10, dip_idx=11, coef=0.849),
+    )
+    holonomic_constraints.add(
+        key="little_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=13, dip_idx=14, coef=0.849),
+    )
+    bio_model = HolonomicTendonBiorbdModel(
+        bio_model_path,
+        holonomic_constraints=holonomic_constraints,
+        independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13],
+        dependent_joint_index=[11, 14],
+        contact_types=[],
+        torque_driven_dofs=["thumb_proxy_RotY"]
+    )
+
+    state_mapping = BiMappingList()
+    state_mapping.add("q",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
+    state_mapping.add("qdot",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13])
+
+    objectives = ObjectiveList()
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001)
+
+    constraints = ConstraintList()
+    constraints.add(
+        ConstraintFcn.TIME_CONSTRAINT,
+        node=Node.END,
+        min_bound=0.5,
+        max_bound=1.5
+    )
+
+    phase_transitions = PhaseTransitionList()
+    phase_transitions.add(
+        PhaseTransitionFcn.CYCLIC,
+        custom_function=partial(velocity_based_forward_displacement_phase_transition, target_velocity=-0.07),
+        phase_pre_idx=0,
+    )
+
+    # Starting posture (fingers pre-flexed and in contact with the ground).
+    q0 = [
+        0.0, 0.0, 0.01581, -0.30541,-0.03601,0,#-0.41, 0.0, 0.0,
+        -0.38,0,0,#-0.43, 0.86, 1.01,
+        0.19, 0.81, 0.81*0.849, #0.47, 0.91, 0.77259,
+        0, 1.369, 1.1852#0.69, 0.44, 0.37356
+    ]
+    q0_u = q0[:11] + q0[12:14]
+    q0_v = [q0[11], q0[14]]
+    bio_model.q_v_init_guess = DM(q0_v)
+
+    x_bounds = BoundsList()
+    x_bounds.add("q_u", bio_model.bounds_from_ranges("q", mapping=state_mapping))
+    x_bounds.add("qdot_u", bio_model.bounds_from_ranges("qdot", mapping=state_mapping))
+    #x_bounds["q_u"][:, 0] = q0_u
+    #x_bounds["qdot_u"][:, 0] = 1e-10
+    #x_bounds["qdot_u"][:, -1] = 0
+
+    x_init = InitialGuessList()
+    x_init.add("q_u", q0_u)
+    x_init.add("qdot_u", [1e-10] * bio_model.nb_independent_joints)
+
+    u_bounds = BoundsList()
+    u_bounds.add("tendons", min_bound=[0] * bio_model.nb_tendons, max_bound=[200] * bio_model.nb_tendons)
+    u_bounds.add("non_tendon_tau", min_bound=[-20], max_bound=[20])
+
+    return bio_model, OptimalControlProgram(
+        bio_model,
+        n_shooting=40,
+        phase_time=1,
+        objective_functions=objectives,
+        phase_transitions=phase_transitions,
+        dynamics=DynamicsOptions(
+            ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3),
+            #phase_dynamics=PhaseDynamics.ONE_PER_NODE,
+        ),
+        x_bounds=x_bounds,
+        u_bounds=u_bounds,
+        x_init=x_init,
+        variable_mappings=state_mapping,
+        n_threads=10
+    )
+
 
 def main():
     #ocp = prepare_touchdown_ocp(str(Path(__file__).with_name("soft_contact_crawl.bioMod")))
@@ -443,7 +544,7 @@ def main():
     sol.graphs()
 
 def holonomic_main():
-    model_path = str(Path(__file__).with_name("rest_pos_three_finger_soft_crawl.bioMod"))
+    model_path = str(Path(__file__).with_name("holonomic_soft_contact_three_finger.bioMod"))
     bio_model, ocp = prepare_holonomic_soft_crawl_ocp(
         model_path,
         n_threads=8,
@@ -461,6 +562,8 @@ def holonomic_main():
     viz.load_movement(q)
     viz.exec()
     sol.graphs(automatically_organize=False)
+    ExampleUtils.save_solution(ocp, sol)
+    ExampleUtils.save_control_data(ocp, sol, "solutions/soft_contact_single_phase.npz")
 
 def holonomic_two_phase_main():
     model_path = str(Path(__file__).with_name("holonomic_soft_contact_three_finger_2.bioMod"))
@@ -482,7 +585,25 @@ def holonomic_two_phase_main():
     viz.exec()
     sol.graphs(automatically_organize=False)
 
+def cyclic_main():
+    model_path = str(Path(__file__).with_name("holonomic_soft_contact_three_finger_2.bioMod"))
+    bio_model, ocp = prepare_cyclic_holonomic_soft_crawl_ocp(model_path)
+    ocp.add_plot_penalty(CostType.CONSTRAINTS)
+    solver = Solver.IPOPT()
+    solver.set_maximum_iterations(1_000_000)
+    ocp.set_ocp_solver(solver)
+    ocp.ocp_solver.options_common["iteration_callback"] = IterationsControllerCallback(ocp, budget=2000, default_extension=500)
+    sol = ocp.solve(solver)
+    sol.print_cost()
+    states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
+    q = bio_model.compute_q_from_u_iterative(states["q_u"])
+    viz = bioviz.Viz(model_path)
+    viz.load_movement(q)
+    viz.exec()
+    sol.graphs(automatically_organize=False)
+
 if __name__ == "__main__":
     #main()
-    #holonomic_main()
-    holonomic_two_phase_main()
+    holonomic_main()
+    #holonomic_two_phase_main()
+    #cyclic_main()
