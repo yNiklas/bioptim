@@ -1696,9 +1696,9 @@ def prepare_five_finger_inchworm_ocp(
             max_bound=2,
             phase=phase
         )
-    for name in ("base_contact_right_marker", "thumb_endeffector", "middle_endeffector"):
+    for name in ("base_contact_right_marker", "thumb_endeffector", "index_endeffector", "middle_endeffector", "little_endeffector"):
         constraints.add(marker_position, marker_name=name, axis=Axis.Z, node=Node.START, min_bound=0, max_bound=0, phase=0)
-    for name in ("base_contact_right_marker", "thumb_endeffector", "little_endeffector"):
+    for name in ("base_contact_right_marker", "thumb_endeffector", "index_endeffector", "ring_endeffector", "little_endeffector"):
         constraints.add(marker_position, marker_name=name, axis=Axis.Z, node=Node.START, min_bound=0, max_bound=0, phase=1)
     for contact_index in [0,1,2,5,6]:
         constraints.add(
@@ -1765,14 +1765,23 @@ def prepare_five_finger_inchworm_ocp(
         max_bound=np.inf,
         phase=0,
     )
+    constraints.add(
+        marker_position,
+        marker_name="base_contact_right_marker",
+        node=Node.END,
+        axis=Axis.Y,
+        max_bound=0.05,
+        min_bound=-5,
+        phase=1
+    )
 
     q0 = [
-        0.0, 0.0, 0.0271, -0.41, 0.0, 0.0,
-        -0.43, 0.86, 1.01,
-        0.69, 0.44, 0.37356,
-        0.47, 0.91, 0.77259,
-        0.47, 0.91, 0.77259,
-        0.69, 0.44, 0.37356
+        0.00000, 0.00000, 0.014479, -0.254092, 0, 0,
+        -0.328126, 0, 0,
+        0.012420, 1.388055, 1.388055*0.849,
+        0.157544, 0.736652, 0.736652*0.849,
+        0, 0, 0,
+        0.012420, 1.388055, 1.388055*0.849,
     ]
     q0_u = q0[:11] + q0[12:14] + q0[15:17] + q0[18:20]
     q0_v = [q0[11], q0[14], q0[17], q0[20]]
@@ -1784,9 +1793,9 @@ def prepare_five_finger_inchworm_ocp(
     x_bounds.add("q_u", bio_model[1].bounds_from_ranges("q", mapping=state_mapping), phase=1)
     x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=0)
     x_bounds.add("qdot_u", bio_model[1].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
-    #x_bounds[0]["qdot_u"][:6, 0] = 0
-    #x_bounds[0]["qdot_u"][:6, -1] = 0
-    #x_bounds[1]["qdot_u"][:6, -1] = 0
+    x_bounds[0]["q_u"][:, 0] = q0_u
+    x_bounds[0]["qdot_u"][:6, 0] = 0
+    x_bounds[0]["qdot_u"][:6, -1] = 0
 
     x_init = InitialGuessList()
     x_init.add("q_u", q0_u, phase=0)
@@ -1804,7 +1813,7 @@ def prepare_five_finger_inchworm_ocp(
 
     phase_transitions = PhaseTransitionList()
     phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=0)
-    phase_transitions.add(PhaseTransitionFcn.CYCLIC, custom_function=velocity_based_forward_displacement_phase_transition)
+    #phase_transitions.add(PhaseTransitionFcn.CYCLIC, custom_function=velocity_based_forward_displacement_phase_transition)
 
     dynamics = DynamicsOptionsList()
     dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=0)
@@ -2042,5 +2051,5 @@ if __name__ == "__main__":
     #velocity_based_cyclic_main()
     #inverse_velocity_based_cyclic_main()
     #ramp_up_main()
-    inchworm_main()
-    #five_fingered_inchworm_main()
+    #inchworm_main()
+    five_fingered_inchworm_main()
