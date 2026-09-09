@@ -471,6 +471,7 @@ def prepare_cyclic_holonomic_soft_crawl_ocp(bio_model_path: str):
 
     objectives = ObjectiveList()
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001)
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q_u", index=5, weight=2)
 
     constraints = ConstraintList()
     constraints.add(
@@ -581,7 +582,7 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
     )
 
     q0 = [
-        0.0, 0.0, 0.0235, -0.42288, 0.0, 0.0,
+        0.0, 0.0, 0.030309, -0.42288, 0.0, 0.0,
         -0.43, 0.86, 1.01,
         0.69, 0.44, 0.37356,
         0.47, 0.91, 0.77259,
@@ -725,5 +726,5 @@ if __name__ == "__main__":
     #main()
     #holonomic_main()
     #holonomic_two_phase_main()
-    #cyclic_main()
-    holonomic_five_fingered_main()
+    cyclic_main()
+    #holonomic_five_fingered_main()
