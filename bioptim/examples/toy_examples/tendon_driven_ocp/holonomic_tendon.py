@@ -1774,6 +1774,15 @@ def prepare_five_finger_inchworm_ocp(
         min_bound=-5,
         phase=1
     )
+    constraints.add(
+        marker_position,
+        marker_name="base_contact_right_marker",
+        node=Node.START,
+        axis=Axis.Z,
+        max_bound=np.inf,
+        min_bound=-0.005,
+        phase=0
+    )
 
     q0 = [
         0.00000, 0.00000, 0.014479, -0.254092, 0, 0,
@@ -1793,7 +1802,8 @@ def prepare_five_finger_inchworm_ocp(
     x_bounds.add("q_u", bio_model[1].bounds_from_ranges("q", mapping=state_mapping), phase=1)
     x_bounds.add("qdot_u", bio_model[0].bounds_from_ranges("qdot", mapping=state_mapping), phase=0)
     x_bounds.add("qdot_u", bio_model[1].bounds_from_ranges("qdot", mapping=state_mapping), phase=1)
-    x_bounds[0]["q_u"][:, 0] = q0_u
+    x_bounds[0]["q_u"][:2, 0] = q0_u[:2]
+    x_bounds[0]["q_u"][5, 0] = 0
     x_bounds[0]["qdot_u"][:6, 0] = 0
     x_bounds[0]["qdot_u"][:6, -1] = 0
 
@@ -1936,8 +1946,8 @@ def cyclic_main():
     sol.graphs(automatically_organize=False)
 
 def velocity_based_cyclic_main():
-    model_path = ExampleUtils.folder + "/models/holonomic_three_finger_crawl.bioMod"
-    model_path_no_contact = ExampleUtils.folder + "/models/holonomic_three_finger_crawl_no_contact.bioMod"
+    model_path = ExampleUtils.folder + "/models/holonomic_three_finger_crawl_stops.bioMod"
+    model_path_no_contact = ExampleUtils.folder + "/models/holonomic_three_finger_crawl_no_contact_stops.bioMod"
     bio_model, ocp = prepare_velocity_based_holonomic_cyclic_crawl(
         model_path,
         model_path_no_contact,
@@ -1945,7 +1955,9 @@ def velocity_based_cyclic_main():
     )
     ocp.add_plot_penalty(CostType.CONSTRAINTS)
     solver = Solver.IPOPT()
-    solver.set_maximum_iterations(2000)
+    solver.set_maximum_iterations(1_000_000)
+    ocp.set_ocp_solver(solver)
+    ocp.ocp_solver.options_common["iteration_callback"] = IterationsControllerCallback(ocp, budget=2000, default_extension=500)
     sol = ocp.solve(solver)
     sol.print_cost()
     states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.PHASES])
@@ -2022,8 +2034,8 @@ def inchworm_main():
     sol.graphs(automatically_organize=False)
 
 def five_fingered_inchworm_main():
-    middle_model_path = str(Path(__file__).with_name("five_finger_inchworm_middle.bioMod"))
-    little_model_path = str(Path(__file__).with_name("five_finger_inchworm_ring.bioMod"))
+    middle_model_path = str(Path(__file__).with_name("five_finger_inchworm_middle_stops.bioMod"))
+    little_model_path = str(Path(__file__).with_name("five_finger_inchworm_ring_stops.bioMod"))
     bio_model, ocp = prepare_five_finger_inchworm_ocp(
         middle_model_path,
         little_model_path,
