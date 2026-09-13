@@ -519,6 +519,7 @@ def prepare_cyclic_holonomic_soft_crawl_ocp(bio_model_path: str):
         n_shooting=40,
         phase_time=1,
         objective_functions=objectives,
+        constraints=constraints,
         phase_transitions=phase_transitions,
         dynamics=DynamicsOptions(
             ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3),
@@ -580,6 +581,23 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
         max_bound=0.07,
         axis=Axis.Y
     )
+    constraints.add(
+        ConstraintFcn.BOUND_STATE,
+        key="q_u",
+        index=2,
+        min_bound=0,
+        max_bound=np.inf,
+        node=Node.START
+    )
+    for marker_name in ("base_contact_right_marker", "thumb_endeffector", "index_endeffector", "middle_endeffector", "ring_endeffector", "little_endeffector"):
+        constraints.add(
+            marker_position,
+            marker_name=marker_name,
+            node=Node.START,
+            min_bound=-0.005,
+            max_bound=np.inf,
+            axis=Axis.Z
+        )
 
     q0 = [
         0.0, 0.0, 0.030309, -0.42288, 0.0, 0.0,
@@ -596,9 +614,10 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
     x_bounds = BoundsList()
     x_bounds.add("q_u", bio_model.bounds_from_ranges("q", mapping=state_mapping))
     x_bounds.add("qdot_u", bio_model.bounds_from_ranges("qdot", mapping=state_mapping))
-    x_bounds["q_u"][:, 0] = q0_u
-    x_bounds["qdot_u"][:, 0] = 1e-10
-    x_bounds["qdot_u"][:, -1] = 0
+    x_bounds["q_u"][:2, 0] = q0_u[:2]
+    x_bounds["q_u"][5, 0] = 0
+    x_bounds["qdot_u"][:2, 0] = 1e-10
+    #x_bounds["qdot_u"][:, -1] = 0
 
     x_init = InitialGuessList()
     x_init.add("q_u", q0_u)
@@ -614,8 +633,8 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
 
     return bio_model, OptimalControlProgram(
         bio_model,
-        n_shooting=30,
-        phase_time=1,
+        n_shooting=40,
+        phase_time=0.6,
         objective_functions=objectives,
         constraints=constraints,
         dynamics=DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)),
@@ -726,5 +745,5 @@ if __name__ == "__main__":
     #main()
     #holonomic_main()
     #holonomic_two_phase_main()
-    cyclic_main()
-    #holonomic_five_fingered_main()
+    #cyclic_main()
+    holonomic_five_fingered_main()

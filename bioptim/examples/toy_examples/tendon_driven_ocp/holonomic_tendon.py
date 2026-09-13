@@ -1683,9 +1683,17 @@ def prepare_five_finger_inchworm_ocp(
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=0)
     objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
                    axis=Axis.X, quadratic=True, weight=50, phase=0)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, quadratic=True, weight=10, phase=0)
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tendons", weight=0.001, phase=1)
     objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
                    axis=Axis.X, quadratic=True, weight=50, phase=1)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, quadratic=True, weight=10, phase=1)
+    for phase in range(2):
+        objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot_u",
+                       index=[i for i in range(bio_model[0].nb_independent_joints) if i != 1],
+                       weight=0.0001, phase=phase)
 
     constraints = ConstraintList()
     for phase in range(2):
@@ -1693,7 +1701,7 @@ def prepare_five_finger_inchworm_ocp(
             ConstraintFcn.TIME_CONSTRAINT,
             node=Node.END,
             min_bound=0.5,
-            max_bound=2,
+            max_bound=1,
             phase=phase
         )
     for name in ("base_contact_right_marker", "thumb_endeffector", "index_endeffector", "middle_endeffector", "little_endeffector"):
@@ -2054,6 +2062,8 @@ def five_fingered_inchworm_main():
     viz.load_movement(q)
     viz.exec()
     sol.graphs(automatically_organize=False)
+    ExampleUtils.save_solution(ocp, sol)
+    ExampleUtils.save_control_data(ocp, sol, "solutions/five_finger_inchworm.npz")
 
 if __name__ == "__main__":
     #single_phase_main()
