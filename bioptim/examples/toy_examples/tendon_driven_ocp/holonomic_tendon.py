@@ -1,4 +1,5 @@
 import signal
+from functools import partial
 from pathlib import Path
 
 import bioviz
@@ -1831,7 +1832,7 @@ def prepare_five_finger_inchworm_ocp(
 
     phase_transitions = PhaseTransitionList()
     phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=0)
-    #phase_transitions.add(PhaseTransitionFcn.CYCLIC, custom_function=velocity_based_forward_displacement_phase_transition)
+    phase_transitions.add(PhaseTransitionFcn.CYCLIC, custom_function=partial(velocity_based_forward_displacement_phase_transition, target_velocity=-0.08))
 
     dynamics = DynamicsOptionsList()
     dynamics.add(DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)), phase=0)

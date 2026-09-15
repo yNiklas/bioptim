@@ -589,7 +589,7 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
         max_bound=np.inf,
         node=Node.START
     )
-    for marker_name in ("base_contact_right_marker", "thumb_endeffector", "index_endeffector", "middle_endeffector", "ring_endeffector", "little_endeffector"):
+    for marker_name in ("base_contact_right_marker", "thumb_proximal_marker", "thumb_middle_marker", "thumb_endeffector", "index_endeffector", "middle_endeffector", "ring_endeffector", "little_endeffector"):
         constraints.add(
             marker_position,
             marker_name=marker_name,
@@ -635,6 +635,107 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
         bio_model,
         n_shooting=40,
         phase_time=0.6,
+        objective_functions=objectives,
+        constraints=constraints,
+        dynamics=DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)),
+        x_bounds=x_bounds,
+        u_bounds=u_bounds,
+        x_init=x_init,
+        u_init=u_init,
+        variable_mappings=state_mapping,
+        n_threads=n_threads
+    )
+
+
+def prepare_cyclic_five_fingered_soft_crawl_ocp(bio_model_path: str, n_threads=8):
+    holonomic_constraints = HolonomicConstraintsList()
+    holonomic_constraints.add(
+        key="index_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=10, dip_idx=11, coef=0.849),
+    )
+    holonomic_constraints.add(
+        key="middle_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=13, dip_idx=14, coef=0.849),
+    )
+    holonomic_constraints.add(
+        key="ring_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=16, dip_idx=17, coef=0.849),
+    )
+    holonomic_constraints.add(
+        key="little_pip_dip",
+        constraints_fcn=proportional_joint_constraint(pip_idx=19, dip_idx=20, coef=0.849),
+    )
+    bio_model = HolonomicTendonBiorbdModel(
+        bio_model_path,
+        holonomic_constraints=holonomic_constraints,
+        independent_joint_index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 18, 19],
+        dependent_joint_index=[11, 14, 17, 20],
+        contact_types=[],
+        torque_driven_dofs=["thumb_proxy_RotY"]
+    )
+
+    state_mapping = BiMappingList()
+    state_mapping.add("q",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None, 13, 14, None, 15, 16, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 18, 19])
+    state_mapping.add("qdot",
+                      to_second=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, 11, 12, None, 13, 14, None, 15, 16, None],
+                      to_first=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 18, 19])
+
+    objectives = ObjectiveList()
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot_u",
+                   index=[i for i in range(bio_model[0].nb_independent_joints) if i != 1],
+                   weight=0.0001)
+    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
+                   axis=Axis.Y, target=0, quadratic=True, weight=40)
+
+    constraints = ConstraintList()
+    constraints.add(
+        ConstraintFcn.TIME_CONSTRAINT,
+        node=Node.END,
+        min_bound=0.8,
+        max_bound=1.5
+    )
+
+    q0 = [
+        0.0, 0.0, 0.030309, -0.42288, 0.0, 0.0,
+        -0.43, 0.86, 1.01,
+        0.69, 0.44, 0.37356,
+        0.47, 0.91, 0.77259,
+        0.47, 0.91, 0.77259,
+        0.69, 0.44, 0.37356
+    ]
+    q0_u = q0[:11] + q0[12:14] + q0[15:17] + q0[18:20]
+    q0_v = [q0[11], q0[14], q0[17], q0[20]]
+    bio_model.q_v_init_guess = DM(q0_v)
+
+    x_bounds = BoundsList()
+    x_bounds.add("q_u", bio_model.bounds_from_ranges("q", mapping=state_mapping))
+    x_bounds.add("qdot_u", bio_model.bounds_from_ranges("qdot", mapping=state_mapping))
+
+    x_init = InitialGuessList()
+    x_init.add("q_u", q0_u)
+    x_init.add("qdot_u", [1e-10] * bio_model.nb_independent_joints)
+
+    u_bounds = BoundsList()
+    u_bounds.add("tendons", min_bound=[0] * bio_model.nb_tendons, max_bound=[200] * bio_model.nb_tendons)
+    u_bounds.add("non_tendon_tau", min_bound=[-20], max_bound=[20])
+
+    u_init = InitialGuessList()
+    u_init.add("tendons", [2.2144, 2.6561, 0.0, 0.0, 2.4543])
+    u_init.add("non_tendon_tau", [-0.01024])
+
+    phase_transitions = PhaseTransitionList()
+    phase_transitions.add(
+        PhaseTransitionFcn.CYCLIC,
+        custom_function=partial(velocity_based_forward_displacement_phase_transition, target_velocity=-0.07),
+        phase_pre_idx=0,
+    )
+
+    return bio_model, OptimalControlProgram(
+        bio_model,
+        n_shooting=40,
+        phase_time=1,
         objective_functions=objectives,
         constraints=constraints,
         dynamics=DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)),
@@ -740,6 +841,28 @@ def holonomic_five_fingered_main():
     ExampleUtils.save_solution(ocp, sol)
     ExampleUtils.save_control_data(ocp, sol, "solutions/soft_contact_five_fingers_single_phase.npz")
 
+def cyclic_five_fingered_main():
+    model_path = str(Path(__file__).with_name("five_finger_soft_contacts_hand.bioMod"))
+    bio_model, ocp = prepare_cyclic_five_fingered_soft_crawl_ocp(
+        model_path,
+        n_threads=8,
+    )
+    ocp.add_plot_penalty(CostType.CONSTRAINTS)
+    solver = Solver.IPOPT()
+    solver.set_maximum_iterations(1_000_000)
+    ocp.set_ocp_solver(solver)
+    ocp.ocp_solver.options_common["iteration_callback"] = IterationsControllerCallback(ocp, budget=5000, default_extension=500)
+    sol = ocp.solve(solver)
+    sol.print_cost()
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    q = bio_model.compute_q_from_u_iterative(states["q_u"])
+    viz = bioviz.Viz(model_path)
+    viz.load_movement(q)
+    viz.exec()
+    sol.graphs(automatically_organize=False)
+    ExampleUtils.save_solution(ocp, sol)
+    ExampleUtils.save_control_data(ocp, sol, "solutions/cyclic_soft_contact_five_fingers.npz")
+
 
 if __name__ == "__main__":
     #main()
@@ -747,3 +870,4 @@ if __name__ == "__main__":
     #holonomic_two_phase_main()
     #cyclic_main()
     holonomic_five_fingered_main()
+    #cyclic_five_fingered_main()
