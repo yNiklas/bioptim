@@ -474,12 +474,24 @@ def prepare_cyclic_holonomic_soft_crawl_ocp(bio_model_path: str):
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q_u", index=5, weight=2)
 
     constraints = ConstraintList()
-    constraints.add(
-        ConstraintFcn.TIME_CONSTRAINT,
-        node=Node.END,
-        min_bound=0.5,
-        max_bound=1.5
-    )
+    #constraints.add(
+    #    ConstraintFcn.TIME_CONSTRAINT,
+    #    node=Node.END,
+    #    min_bound=0.5,
+    #    max_bound=1.5
+    #)
+
+    # In the optimal solution to this problem, the thumb is under the ground
+    # => Force the thumb to be above the ground at all times
+    for marker_name in ("thumb_proximal_marker", "thumb_middle_marker"):
+        constraints.add(
+            marker_position,
+            marker_name=marker_name,
+            min_bound=-0.005,
+            max_bound=np.inf,
+            axis=Axis.Z,
+            node=Node.ALL
+        )
 
     phase_transitions = PhaseTransitionList()
     phase_transitions.add(
@@ -615,6 +627,10 @@ def prepare_five_fingered_holonomic_soft_crawl_ocp(bio_model_path: str, n_thread
     x_bounds.add("q_u", bio_model.bounds_from_ranges("q", mapping=state_mapping))
     x_bounds.add("qdot_u", bio_model.bounds_from_ranges("qdot", mapping=state_mapping))
     x_bounds["q_u"][:2, 0] = q0_u[:2]
+    x_bounds["q_u"].min[3, 0] = -0.65
+    x_bounds["q_u"].max[3, 0] = -0.1
+    x_bounds["q_u"].min[4, 0] = -0.25
+    x_bounds["q_u"].max[4, 0] = 0.25
     x_bounds["q_u"][5, 0] = 0
     x_bounds["qdot_u"][:2, 0] = 1e-10
     #x_bounds["qdot_u"][:, -1] = 0
@@ -684,10 +700,9 @@ def prepare_cyclic_five_fingered_soft_crawl_ocp(bio_model_path: str, n_threads=8
 
     objectives = ObjectiveList()
     objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot_u",
-                   index=[i for i in range(bio_model[0].nb_independent_joints) if i != 1],
+                   index=[i for i in range(bio_model.nb_independent_joints) if i != 1],
                    weight=0.0001)
-    objectives.add(marker_position, custom_type=ObjectiveFcn.Mayer, marker_name="base_contact_right_marker",
-                   axis=Axis.Y, target=0, quadratic=True, weight=40)
+    objectives.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q_u", index=5, weight=2)
 
     constraints = ConstraintList()
     constraints.add(
@@ -738,6 +753,7 @@ def prepare_cyclic_five_fingered_soft_crawl_ocp(bio_model_path: str, n_threads=8
         phase_time=1,
         objective_functions=objectives,
         constraints=constraints,
+        phase_transitions=phase_transitions,
         dynamics=DynamicsOptions(ode_solver=OdeSolver.COLLOCATION(polynomial_degree=3)),
         x_bounds=x_bounds,
         u_bounds=u_bounds,
@@ -820,7 +836,7 @@ def cyclic_main():
     sol.graphs(automatically_organize=False)
 
 def holonomic_five_fingered_main():
-    model_path = str(Path(__file__).with_name("five_finger_soft_contacts_hand.bioMod"))
+    model_path = str(Path(__file__).with_name("five_finger_soft_contacts_hand_stops.bioMod"))
     bio_model, ocp = prepare_five_fingered_holonomic_soft_crawl_ocp(
         model_path,
         n_threads=8,
